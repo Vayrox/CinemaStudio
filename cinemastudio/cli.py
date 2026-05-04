@@ -215,7 +215,7 @@ def make(
 
 @cli.command()
 @click.option("--host", default="127.0.0.1", show_default=True, help="Host interface to bind.")
-@click.option("--port", default=8765, show_default=True, type=int, help="Port to listen on.")
+@click.option("--port", default=7878, show_default=True, type=int, help="Port to listen on.")
 @click.option("--reload/--no-reload", default=False, help="Auto-reload on code changes (dev).")
 def web(host: str, port: int, reload: bool) -> None:
     """Launch the CinemaStudio web UI."""

@@ -6,7 +6,7 @@ AI short-film pipeline. Logline → screenplay → shot list → moodboards → 
 
 ```bash
 pip install -e .
-cinema web              # open http://127.0.0.1:8765
+cinema web              # open http://127.0.0.1:7878
 ```
 
 The browser UI walks you through:
@@ -43,7 +43,7 @@ VIP+ plan: 3 parallel Seedance jobs, 4 parallel image jobs. The tool queues the 
 
 | Command | What it does |
 |---|---|
-| `cinema web` | Launch the web UI (default http://127.0.0.1:8765) |
+| `cinema web` | Launch the web UI (default http://127.0.0.1:7878) |
 | `cinema setup` | First-run prompt for API keys |
 | `cinema script "<logline>" --slug NAME` | Generate screenplay + shot list only |
 | `cinema moodboard --slug NAME` | Generate moodboards from existing shot list |
