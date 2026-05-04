@@ -52,7 +52,8 @@ window.CinemaCharacters = (() => {
     }
   }
 
-  async function jsonOrErr(resp) {
+  async function jsonOrErr(respOrPromise) {
+    const resp = await respOrPromise;
     if (!resp.ok) {
       const text = await resp.text();
       throw new Error(text || `HTTP ${resp.status}`);
