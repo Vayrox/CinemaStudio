@@ -62,6 +62,12 @@ def file_to_data_url(path: Path | str) -> str:
     return f"data:image/{mime};base64,{base64.b64encode(p.read_bytes()).decode()}"
 
 
+def bytes_to_data_url(data: bytes, mime: str = "image/jpeg") -> str:
+    if not mime.startswith("image/"):
+        mime = "image/jpeg"
+    return f"data:{mime};base64,{base64.b64encode(data).decode()}"
+
+
 class AIAutoClient:
     def __init__(
         self,

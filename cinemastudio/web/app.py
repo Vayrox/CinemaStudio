@@ -95,18 +95,88 @@ def create_app() -> FastAPI:
         _write_char_json(project_dir, chars)
         return chars
 
+    def _shot_counts(project_dir: Path) -> dict[str, int]:
+        """Map character name (lower) → number of shots they appear in."""
+        sp = project_dir / "screenplay.json"
+        if not sp.exists():
+            return {}
+        try:
+            data = json.loads(sp.read_text())
+        except Exception:
+            return {}
+        counts: dict[str, int] = {}
+        for shot in data.get("shots", []) or []:
+            for n in shot.get("character_names", []) or []:
+                key = n.strip().lower()
+                if key:
+                    counts[key] = counts.get(key, 0) + 1
+        return counts
+
     def _list_project_characters(slug: str) -> list[dict[str, Any]]:
         project_dir = PROJECTS_ROOT / slug
         if not project_dir.exists():
             return []
         chars = _sync_project_characters(project_dir)
+        counts = _shot_counts(project_dir)
+        max_count = max(counts.values()) if counts else 0
         out = []
         for c in chars:
             entry = dict(c)
+            key = c["name"].strip().lower()
             entry["safe_name"] = _safe_char_name(c["name"])
             entry["has_portrait"] = _project_char_path(project_dir, c["name"]).exists()
+            entry["shot_count"] = counts.get(key, 0)
+            entry["is_lead"] = max_count > 0 and entry["shot_count"] == max_count
             out.append(entry)
+        # Order: leads first, then by shot count desc, then alphabetic.
+        out.sort(key=lambda e: (-int(e["is_lead"]), -e["shot_count"], e["name"].lower()))
         return out
+
+    def _rename_in_screenplay(project_dir: Path, old_name: str, new_name: str) -> None:
+        """Rename `old_name` to `new_name` everywhere in screenplay.json."""
+        sp_path = project_dir / "screenplay.json"
+        if not sp_path.exists():
+            return
+        try:
+            data = json.loads(sp_path.read_text())
+        except Exception:
+            return
+        old_lower = old_name.strip().lower()
+        if not old_lower or old_lower == new_name.strip().lower():
+            return
+        pattern = re.compile(rf"\b{re.escape(old_name)}\b", flags=re.IGNORECASE)
+        for c in data.get("characters", []) or []:
+            if (c.get("name") or "").strip().lower() == old_lower:
+                c["name"] = new_name
+        for shot in data.get("shots", []) or []:
+            names = shot.get("character_names") or []
+            shot["character_names"] = [
+                new_name if n.strip().lower() == old_lower else n for n in names
+            ]
+            for field in ("description", "motion_prompt", "keyframe_prompt"):
+                if field in shot and isinstance(shot[field], str):
+                    shot[field] = pattern.sub(lambda _m: new_name, shot[field])
+        for scene in data.get("scenes", []) or []:
+            for field in ("title", "summary", "mood", "location"):
+                if field in scene and isinstance(scene[field], str):
+                    scene[field] = pattern.sub(lambda _m: new_name, scene[field])
+        sp_path.write_text(json.dumps(data, indent=2))
+
+    def _rename_in_characters_json(project_dir: Path, old_name: str, new_name: str) -> None:
+        chars = _read_char_json(project_dir)
+        old_lower = old_name.strip().lower()
+        for c in chars:
+            if (c.get("name") or "").strip().lower() == old_lower:
+                c["name"] = new_name
+        _write_char_json(project_dir, chars)
+
+    def _rename_portrait_file(project_dir: Path, old_name: str, new_name: str) -> None:
+        if _safe_char_name(old_name) == _safe_char_name(new_name):
+            return
+        old_path = _project_char_path(project_dir, old_name)
+        new_path = _project_char_path(project_dir, new_name)
+        if old_path.exists():
+            old_path.rename(new_path)
 
     # ---------------------------------------------------------------- helpers
 
@@ -564,6 +634,57 @@ def create_app() -> FastAPI:
             dest.write_bytes(src.read_bytes())
         return JSONResponse({"ok": True, "characters": _list_project_characters(slug)})
 
+    @app.post("/api/projects/{slug}/cast/update")
+    async def cast_update(
+        slug: str,
+        old_name: str = Form(...),
+        new_name: str = Form(""),
+        lib_slug: str = Form(""),
+    ) -> JSONResponse:
+        """Rename a character in the screenplay + characters.json + portrait file.
+
+        If `lib_slug` is provided, the character's name becomes the library
+        character's name (overriding `new_name`) and the library sheet is copied
+        into the project as that character's portrait.
+        """
+        project_dir = PROJECTS_ROOT / slug
+        if not project_dir.exists():
+            raise HTTPException(404, "project not found")
+        old_name = old_name.strip()
+        if not old_name:
+            raise HTTPException(400, "old_name required")
+        lib_char = None
+        if lib_slug:
+            lib_char = library.get_character(lib_slug)
+            if not lib_char:
+                raise HTTPException(404, "library character not found")
+            new_name = lib_char["name"]
+        new_name = (new_name or "").strip()
+        if not new_name:
+            raise HTTPException(400, "new_name required")
+
+        # Apply rename across everything.
+        _rename_in_screenplay(project_dir, old_name, new_name)
+        _rename_in_characters_json(project_dir, old_name, new_name)
+        _rename_portrait_file(project_dir, old_name, new_name)
+
+        # If we replaced from library, also copy description + portrait sheet.
+        if lib_char:
+            chars = _read_char_json(project_dir)
+            for c in chars:
+                if (c.get("name") or "").strip().lower() == new_name.strip().lower():
+                    if lib_char.get("description"):
+                        c["description"] = lib_char["description"]
+                    c["source"] = "imported"
+            _write_char_json(project_dir, chars)
+            src = library.portrait_path(lib_slug)
+            if src.exists():
+                dest = _project_char_path(project_dir, new_name)
+                dest.parent.mkdir(parents=True, exist_ok=True)
+                dest.write_bytes(src.read_bytes())
+
+        return JSONResponse({"ok": True, "characters": _list_project_characters(slug)})
+
     @app.get("/files/{slug}/characters/{filename}")
     async def serve_project_character(slug: str, filename: str) -> FileResponse:
         target = (PROJECTS_ROOT / slug / "characters" / filename).resolve()
@@ -669,6 +790,66 @@ def create_app() -> FastAPI:
         if not p.exists():
             raise HTTPException(404, "no portrait")
         return FileResponse(str(p))
+
+    @app.post("/api/library/from-url")
+    async def api_library_from_url(
+        name: str = Form(...),
+        description: str = Form(""),
+        url: str = Form(...),
+        mode: str = Form("as-is"),
+    ) -> JSONResponse:
+        from cinemastudio.providers.ai_auto import bytes_to_data_url
+        from cinemastudio.web.url_image import fetch_image_from_url
+
+        name = name.strip()
+        if not name:
+            raise HTTPException(400, "name required")
+        try:
+            data, mime = await fetch_image_from_url(url)
+        except ValueError as exc:
+            raise HTTPException(400, str(exc)) from exc
+        except Exception as exc:  # noqa: BLE001
+            raise HTTPException(502, f"Could not fetch image: {exc}") from exc
+
+        slug = library.unique_slug(name)
+        library.save_character(slug, name, description.strip(), source="imported")
+
+        if mode == "generate":
+            cfg = _config()
+            if not cfg.AI_AUTO_API_KEY:
+                # Roll back the meta entry so we don't orphan it.
+                library.delete_character(slug)
+                raise HTTPException(400, "ai-auto.io key not set")
+            ref = bytes_to_data_url(data, mime=mime)
+            out = library.portrait_path(slug)
+            try:
+                async with AIAutoClient(
+                    api_key=cfg.AI_AUTO_API_KEY,
+                    video_concurrency=cfg.VIDEO_CONCURRENCY,
+                    image_concurrency=cfg.IMAGE_CONCURRENCY,
+                ) as client:
+                    from cinemastudio.pipeline.character import SHEET_PROMPT_TEMPLATE
+                    prompt = SHEET_PROMPT_TEMPLATE.format(
+                        name=name,
+                        description=description or "match the reference image exactly",
+                    )
+                    gen = await client.generate_image(
+                        prompt=prompt,
+                        image_model=cfg.CHARACTER_IMAGE_MODEL,
+                        aspect_ratio="16:9",
+                        resolution="4k",
+                        reference_images=[ref],
+                    )
+                    out.parent.mkdir(parents=True, exist_ok=True)
+                    await client.download_image(gen.id, out)
+            except Exception:
+                library.delete_character(slug)
+                raise
+        else:
+            # Use the fetched image as-is.
+            library.write_portrait_bytes(slug, data)
+
+        return JSONResponse({"ok": True, "slug": slug, "characters": library.list_library()})
 
     # ---------------------------------------------------------------- runners
 

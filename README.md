@@ -35,11 +35,15 @@ cinema make "A lonely lighthouse keeper discovers a glowing creature in the surf
 
 Output lands in `projects/<slug>/clips/` as labeled MP4s plus an EDL CSV you can import into your editor.
 
-## Idea generator + character library
+## Idea generator + character library + cast workflow
 
 * **Idea generator** — on the *New film* page, click **"Need ideas?"**, type a vague theme, and Gemini returns 10 polished loglines. Click one to autofill.
-* **Per-project Characters tab** — every project has a Characters tab listing the cast Gemini wrote (plus any you add manually). For each character you can generate a **locked reference portrait**, upload a real photo, edit the description, or save them to the cross-project library. When you next run the moodboard step, those portraits are passed to the keyframe model as references — the same actor will recur across every shot.
-* **Cross-project library** at `/library` — keep a personal cast of recurring characters with portraits, then "Import from library" into any project to instantly reuse them. Stored in `~/.cinemastudio/characters/`.
+* **Cast workflow** — after the screenplay is generated, the project's *Characters* tab shows every character with the count of shots they appear in (the most-frequent one gets a **lead** badge). Rename inline and the new name is rewritten across every scene, shot, description, motion prompt, and keyframe prompt in `screenplay.json`. Click *Replace from library* to swap a character for one you've already designed — name and 3-panel sheet both copy over.
+* **Cross-project library** at `/library` — reusable characters with **3-panel reference sheets** (front · back · face close-up on white). Three ways to add one:
+  - Manual: name + description, then click *Generate sheet* to render via Nano Banana Pro.
+  - Upload: drag in a real photo to use as the sheet.
+  - **From image URL** — paste a Pinterest pin URL or any direct image link. Pick *use as-is* (free, the photo becomes the sheet) or *generate sheet from this reference* (sends the photo to Nano Banana Pro and produces a proper 3-panel turnaround locked to it).
+* **Pipeline wiring** — every shot's keyframe is generated with that shot's character sheets passed as `reference_images` to the image model (max 2 per shot). Same face, hair, wardrobe across every shot in your film.
 
 ## Pipeline
 

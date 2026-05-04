@@ -17,6 +17,65 @@
     }
   });
 
+  const urlBtn = document.getElementById("lib-from-url-btn");
+  urlBtn.addEventListener("click", () => promptFromUrl());
+
+  function promptFromUrl() {
+    const overlay = document.createElement("div");
+    overlay.className = "modal-overlay";
+    overlay.innerHTML = `
+      <div class="modal-card">
+        <h3>Character from image URL</h3>
+        <label><span>Name</span><input type="text" data-field="name" placeholder="Maya Reyes" /></label>
+        <label><span>Description (optional)</span><textarea data-field="description" rows="3" placeholder="age, build, hair, eyes, distinguishing marks, wardrobe"></textarea></label>
+        <label><span>Image URL</span><input type="url" data-field="url" placeholder="https://www.pinterest.com/pin/... or direct image URL" /></label>
+        <fieldset class="radio-group">
+          <legend>What to do with the image</legend>
+          <label class="radio">
+            <input type="radio" name="lib-url-mode" value="as-is" checked />
+            <span><strong>Use as-is.</strong> Save the photo directly as the character sheet. Free.</span>
+          </label>
+          <label class="radio">
+            <input type="radio" name="lib-url-mode" value="generate" />
+            <span><strong>Generate 3-panel sheet from this reference.</strong> Sends the image to Nano Banana Pro and produces a front · back · close-up sheet locked to it. Costs one image generation.</span>
+          </label>
+        </fieldset>
+        <div class="actions">
+          <button class="btn primary" data-action="ok">Add character</button>
+          <button class="btn" data-action="cancel">Cancel</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+    const close = () => overlay.remove();
+    overlay.querySelector('[data-action="cancel"]').addEventListener("click", close);
+    overlay.addEventListener("click", (e) => { if (e.target === overlay) close(); });
+    overlay.querySelector('[data-action="ok"]').addEventListener("click", async () => {
+      const name = overlay.querySelector('[data-field="name"]').value.trim();
+      const url = overlay.querySelector('[data-field="url"]').value.trim();
+      const description = overlay.querySelector('[data-field="description"]').value.trim();
+      const mode = overlay.querySelector('input[name="lib-url-mode"]:checked').value;
+      if (!name) { showError("Name required"); return; }
+      if (!url) { showError("URL required"); return; }
+      const ok = overlay.querySelector('[data-action="ok"]');
+      ok.disabled = true;
+      ok.textContent = mode === "generate" ? "Generating sheet..." : "Fetching...";
+      const fd = new FormData();
+      fd.append("name", name);
+      fd.append("description", description);
+      fd.append("url", url);
+      fd.append("mode", mode);
+      try {
+        await jsonOrErr(await fetch("/api/library/from-url", { method: "POST", body: fd }));
+        window.location.reload();
+      } catch (err) {
+        showError(`Failed: ${err.message}`);
+        ok.disabled = false;
+        ok.textContent = "Add character";
+      }
+    });
+  }
+
   grid.addEventListener("click", async (e) => {
     const btn = e.target.closest("[data-lib-action]");
     if (!btn) return;

@@ -66,14 +66,22 @@
 </section>
 
 <section class="tab-panel hidden" id="panel-characters">
+  {% if sp and data.characters %}
+    <div class="banner ok cast-banner">
+      <strong>Cast review.</strong>
+      Your story has <strong>{{ data.characters|length }}</strong> character{{ '' if data.characters|length == 1 else 's' }}.
+      Rename inline (the screenplay updates automatically), or click <em>Replace from library</em> to swap in someone you've already designed.
+      Generate or upload a sheet for each one before running the moodboard step — every shot featuring them will use it as a locked reference.
+    </div>
+  {% endif %}
   <div class="actions inline">
     <button class="btn primary" id="char-new-btn">+ Add character</button>
     <button class="btn" id="char-import-btn">Import from library</button>
-    <span class="muted small">3-panel character sheets (front · back · close-up) are passed as locked references for every keyframe featuring that character.</span>
+    <span class="muted small">3-panel sheets are passed as references to every keyframe featuring that character.</span>
   </div>
   <div class="char-grid" id="char-grid">
     {% for ch in data.characters %}
-      <div class="char-card" data-char-slug="{{ ch.safe_name }}">
+      <div class="char-card{% if ch.is_lead %} lead{% endif %}" data-char-slug="{{ ch.safe_name }}" data-char-name="{{ ch.name }}">
         {% if ch.has_portrait %}
           <a class="char-portrait" href="/files/{{ data.slug }}/characters/{{ ch.safe_name }}.jpg" target="_blank" title="Open full sheet">
             <img src="/files/{{ data.slug }}/characters/{{ ch.safe_name }}.jpg?t={{ data.job.started_at if data.job else 0 }}" alt="{{ ch.name }} character sheet" />
@@ -82,15 +90,22 @@
           <div class="char-portrait"><div class="char-portrait-placeholder">no sheet yet</div></div>
         {% endif %}
         <div class="char-body">
-          <h4>{{ ch.name }}</h4>
-          <span class="badge {{ ch.source }}">{{ ch.source }}</span>
-          <p class="muted small">{{ ch.description or '(no description)' }}</p>
+          <div class="char-name-row">
+            <input class="char-name-input" type="text" value="{{ ch.name }}" data-char-rename data-original="{{ ch.name }}" />
+            {% if ch.is_lead %}<span class="badge lead">lead</span>{% endif %}
+          </div>
+          <div class="char-meta">
+            <span class="badge {{ ch.source }}">{{ ch.source }}</span>
+            {% if ch.shot_count %}<span class="muted small">in {{ ch.shot_count }} shot{{ '' if ch.shot_count == 1 else 's' }}</span>{% endif %}
+          </div>
+          <p class="muted small char-desc">{{ ch.description or '(no description)' }}</p>
           <div class="char-actions">
             <button class="btn small" data-char-action="regen">Generate sheet</button>
             <label class="btn small">
               Upload<input type="file" accept="image/*" data-char-action="upload" hidden />
             </label>
-            <button class="btn small" data-char-action="edit">Edit</button>
+            <button class="btn small" data-char-action="edit">Edit description</button>
+            <button class="btn small" data-char-action="replace">Replace from library</button>
             <button class="btn small" data-char-action="save-to-library">→ Library</button>
             <button class="btn small danger" data-char-action="delete">Delete</button>
           </div>

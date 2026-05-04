@@ -20,58 +20,91 @@
     }
   });
 
-  importBtn.addEventListener("click", async () => {
+  // Inline rename: commit on blur or Enter when value differs from original.
+  grid.addEventListener("blur", async (e) => {
+    const input = e.target.closest("[data-char-rename]");
+    if (!input) return;
+    const newName = input.value.trim();
+    const oldName = input.dataset.original;
+    if (!newName || newName === oldName) {
+      input.value = oldName;
+      return;
+    }
+    const card = input.closest("[data-char-slug]");
+    const fd = new FormData();
+    fd.append("old_name", oldName);
+    fd.append("new_name", newName);
+    try {
+      await jsonOrErr(await fetch(`/api/projects/${slug}/cast/update`, { method: "POST", body: fd }));
+      window.location.reload();
+    } catch (err) {
+      showError(`Rename failed: ${err.message}`);
+      input.value = oldName;
+    }
+  }, true);
+  grid.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && e.target.closest("[data-char-rename]")) {
+      e.preventDefault();
+      e.target.blur();
+    }
+  });
+
+  async function pickFromLibrary() {
     let data;
     try {
       data = await jsonOrErr(await fetch("/api/library"));
     } catch (e) {
       showError(`Failed to load library: ${e.message}`);
-      return;
+      return null;
     }
     const characters = data.characters || [];
     if (!characters.length) {
       showError("Library is empty. Add characters at /library first.");
-      return;
+      return null;
     }
-    const overlay = document.createElement("div");
-    overlay.className = "modal-overlay";
-    const cards = characters
-      .map(
-        (c) => `
-      <button type="button" class="lib-pick" data-pick-slug="${c.slug}">
-        ${c.has_portrait ? `<img src="/library-files/${c.slug}/portrait" alt="${c.name}" />` : '<div class="char-portrait-placeholder">no portrait</div>'}
-        <div class="lib-pick-meta">
-          <strong>${c.name}</strong>
-          <span class="muted small">${(c.description || "").slice(0, 80)}</span>
+    return new Promise((resolve) => {
+      const overlay = document.createElement("div");
+      overlay.className = "modal-overlay";
+      const cards = characters
+        .map(
+          (c) => `
+        <button type="button" class="lib-pick" data-pick-slug="${c.slug}">
+          ${c.has_portrait ? `<img src="/library-files/${c.slug}/portrait" alt="${c.name}" />` : '<div class="char-portrait-placeholder">no sheet</div>'}
+          <div class="lib-pick-meta">
+            <strong>${c.name}</strong>
+            <span class="muted small">${(c.description || "").slice(0, 80)}</span>
+          </div>
+        </button>`
+        )
+        .join("");
+      overlay.innerHTML = `
+        <div class="modal-card wide">
+          <h3>Pick a character</h3>
+          <div class="lib-pick-grid">${cards}</div>
+          <div class="actions"><button class="btn" data-action="cancel">Close</button></div>
         </div>
-      </button>`
-      )
-      .join("");
-    overlay.innerHTML = `
-      <div class="modal-card wide">
-        <h3>Import from library</h3>
-        <div class="lib-pick-grid">${cards}</div>
-        <div class="actions"><button class="btn" data-action="cancel">Close</button></div>
-      </div>
-    `;
-    document.body.appendChild(overlay);
-    overlay.querySelector('[data-action="cancel"]').addEventListener("click", () => overlay.remove());
-    overlay.addEventListener("click", (e) => {
-      if (e.target === overlay) overlay.remove();
+      `;
+      document.body.appendChild(overlay);
+      const close = (val) => { overlay.remove(); resolve(val); };
+      overlay.querySelector('[data-action="cancel"]').addEventListener("click", () => close(null));
+      overlay.addEventListener("click", (e) => { if (e.target === overlay) close(null); });
+      overlay.querySelectorAll("[data-pick-slug]").forEach((b) =>
+        b.addEventListener("click", () => close(b.dataset.pickSlug))
+      );
     });
-    overlay.querySelectorAll("[data-pick-slug]").forEach((b) =>
-      b.addEventListener("click", async () => {
-        const libSlug = b.dataset.pickSlug;
-        try {
-          await jsonOrErr(
-            await fetch(`/api/projects/${slug}/characters/import/${libSlug}`, { method: "POST" })
-          );
-          window.location.reload();
-        } catch (err) {
-          showError(`Import failed: ${err.message}`);
-        }
-      })
-    );
+  }
+
+  importBtn.addEventListener("click", async () => {
+    const libSlug = await pickFromLibrary();
+    if (!libSlug) return;
+    try {
+      await jsonOrErr(
+        await fetch(`/api/projects/${slug}/characters/import/${libSlug}`, { method: "POST" })
+      );
+      window.location.reload();
+    } catch (err) {
+      showError(`Import failed: ${err.message}`);
+    }
   });
 
   grid.addEventListener("click", async (e) => {
@@ -92,8 +125,8 @@
       }
     } else if (action === "edit") {
       const data = await promptForm("Edit character", {
-        name: card.querySelector("h4").textContent,
-        description: card.querySelector(".muted.small").textContent.trim(),
+        name: card.dataset.charName,
+        description: card.querySelector(".char-desc").textContent.trim(),
       });
       if (!data) return;
       const fd = new FormData();
@@ -117,9 +150,24 @@
       } catch (err) {
         showError(`Delete failed: ${err.message}`);
       }
+    } else if (action === "replace") {
+      const libSlug = await pickFromLibrary();
+      if (!libSlug) return;
+      const oldName = card.dataset.charName;
+      const fd = new FormData();
+      fd.append("old_name", oldName);
+      fd.append("lib_slug", libSlug);
+      try {
+        await jsonOrErr(
+          await fetch(`/api/projects/${slug}/cast/update`, { method: "POST", body: fd })
+        );
+        window.location.reload();
+      } catch (err) {
+        showError(`Replace failed: ${err.message}`);
+      }
     } else if (action === "save-to-library") {
-      const name = card.querySelector("h4").textContent;
-      const description = card.querySelector(".muted.small").textContent.trim();
+      const name = card.dataset.charName;
+      const description = card.querySelector(".char-desc").textContent.trim();
       const fd = new FormData();
       fd.append("name", name);
       fd.append("description", description);
