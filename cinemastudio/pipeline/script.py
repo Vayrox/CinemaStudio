@@ -109,12 +109,28 @@ def generate_screenplay(
 
 
 LOGLINE_SYSTEM = (
-    "You are a film story generator. Given a seed idea, return a JSON array "
-    "of vivid one-sentence loglines. Each logline MUST include:\n"
-    "  - a protagonist with one telling detail (age, role, distinguishing trait)\n"
-    "  - a clear central conflict or dramatic situation\n"
-    "  - an evocative setting or atmosphere\n"
-    "Keep each logline under 30 words. Return ONLY a JSON array of strings, no prose."
+    "You are a senior screenwriter helping a director pitch their next short "
+    "film. The user will give you a seed idea — anything from a vague theme "
+    "to a detailed brief with characters, plot beats, settings, and tone.\n\n"
+    "Your job: return a JSON array of polished one-sentence loglines, each "
+    "honouring the seed's intent.\n\n"
+    "RULES (in order of priority):\n"
+    "1. Preserve EVERY concrete element from the seed: named characters, "
+    "specific objects, locations, plot beats, time periods, technology, "
+    "stated tone, requested genre. NEVER drop or replace specifics. If the "
+    "seed says 'shapeshifting gauntlet', every logline must include the "
+    "shapeshifting gauntlet.\n"
+    "2. What you ARE allowed to vary between loglines: the angle of approach "
+    "(POV, central conflict beat, antagonist framing, opening situation), "
+    "the protagonist's secret weakness, the stakes, the visual atmosphere — "
+    "but ALL the seed's named elements must still appear in every option.\n"
+    "3. Each logline is one cinematic sentence: a protagonist with a telling "
+    "detail, a concrete conflict, and an evocative setting. Length is "
+    "whatever it takes to honour rule 1 — usually 25–50 words.\n"
+    "4. No filler ('explore', 'embark on a journey', 'must learn'). Use "
+    "active verbs and concrete imagery.\n"
+    "5. Return ONLY a JSON array of strings. No prose, no numbering, no "
+    "markdown fences."
 )
 
 
@@ -127,9 +143,11 @@ def generate_loglines(
 ) -> list[str]:
     """Expand a seed idea into `count` polished loglines."""
     user = (
-        f"Seed idea: {seed}\n"
-        f"Generate exactly {count} distinct loglines. Vary tone, scale, and genre.\n"
-        "Return a JSON array of strings only."
+        f"Seed:\n{seed}\n\n"
+        f"Generate exactly {count} distinct loglines. Each MUST include every "
+        f"named character, plot element, object, setting, time period, and "
+        f"tone keyword from the seed above — vary only the dramatic angle. "
+        f"Return a JSON array of {count} strings."
     )
     provider = (provider or "google").lower()
     if provider == "anthropic":

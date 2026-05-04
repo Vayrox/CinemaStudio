@@ -103,6 +103,49 @@
     });
   });
 
+  // Regenerate buttons on individual moodboards / keyframes.
+  document.querySelectorAll("[data-regen-moodboard]").forEach((btn) => {
+    btn.addEventListener("click", () => regenAsset("moodboard", btn));
+  });
+  document.querySelectorAll("[data-regen-keyframe]").forEach((btn) => {
+    btn.addEventListener("click", () => regenAsset("keyframe", btn));
+  });
+
+  async function regenAsset(kind, btn) {
+    const filename = btn.dataset[kind === "moodboard" ? "regenMoodboard" : "regenKeyframe"];
+    let idx;
+    if (kind === "moodboard") {
+      const m = filename.match(/scene_(\d+)_moodboard/);
+      if (!m) return;
+      idx = parseInt(m[1], 10);
+    } else {
+      const m = filename.match(/shot_(\d+)/);
+      if (!m) return;
+      idx = parseInt(m[1], 10);
+    }
+    const original = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = "Regenerating...";
+    try {
+      const r = await fetch(`/projects/${slug}/${kind === "moodboard" ? "regenerate/moodboard" : "regenerate/keyframe"}/${idx}`.replace("/projects/", "/api/projects/"), { method: "POST" });
+      if (!r.ok) throw new Error(await r.text());
+      // Force-refresh the thumb via cache-busting query param.
+      const card = btn.closest(".thumb");
+      const img = card.querySelector("img");
+      if (img) img.src = img.src.split("?")[0] + "?t=" + Date.now();
+      const link = card.querySelector("a");
+      if (link) link.href = link.href.split("?")[0] + "?t=" + Date.now();
+      btn.textContent = "Done";
+      setTimeout(() => { btn.textContent = original; btn.disabled = false; }, 1500);
+    } catch (err) {
+      btn.textContent = "Failed";
+      btn.disabled = false;
+      console.error(err);
+      alert(`Regenerate failed: ${err.message || err}`);
+      setTimeout(() => { btn.textContent = original; }, 2000);
+    }
+  }
+
   // On load: if a job is currently running, stream and reload at end.
   // Otherwise, replay prior history once without reload.
   if (window.JOB_STATUS === "running") {

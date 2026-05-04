@@ -149,6 +149,74 @@ async def _generate_keyframe(
     return out_path
 
 
+async def regenerate_scene_moodboard(
+    *,
+    client: AIAutoClient,
+    screenplay: Screenplay,
+    project_dir: Path,
+    scene_idx: int,
+    moodboard_image_model: str,
+    image_resolution: str = "4k",
+) -> Path:
+    """Regenerate just the moodboard sheet for a single scene."""
+    moodboards_dir = project_dir / "moodboards"
+    moodboards_dir.mkdir(parents=True, exist_ok=True)
+    shots = [s for s in screenplay.shots if s.scene == scene_idx]
+    if not shots:
+        raise ValueError(f"No shots found in scene {scene_idx}")
+    prompt = _moodboard_prompt(screenplay, scene_idx, shots)
+    out = moodboards_dir / f"scene_{scene_idx:02d}_moodboard.jpg"
+    console.log(f"[cyan]Regenerating moodboard[/cyan] scene {scene_idx} ({len(shots)} panels)")
+    gen = await client.generate_image(
+        prompt=prompt,
+        image_model=moodboard_image_model,
+        aspect_ratio="16:9",
+        resolution=image_resolution,
+    )
+    await client.download_image(gen.id, out)
+    if len(shots) >= 2:
+        _slice_moodboard(out, len(shots), moodboards_dir, scene_idx)
+    return out
+
+
+async def regenerate_shot_keyframe(
+    *,
+    client: AIAutoClient,
+    screenplay: Screenplay,
+    project_dir: Path,
+    shot_index: int,
+    keyframe_image_model: str,
+    aspect_ratio: str,
+    image_resolution: str = "4k",
+) -> Path:
+    """Regenerate just the keyframe for a single shot."""
+    shot = next((s for s in screenplay.shots if s.index == shot_index), None)
+    if shot is None:
+        raise ValueError(f"No shot with index {shot_index}")
+    keyframes_dir = project_dir / "keyframes"
+    keyframes_dir.mkdir(parents=True, exist_ok=True)
+    out = keyframes_dir / f"shot_{shot.index:03d}.jpg"
+    refs, matched = _references_for_shot(project_dir, shot, screenplay)
+    if refs:
+        console.log(
+            f"[green]Regenerating keyframe[/green] shot {shot.index} (refs: {', '.join(matched)})"
+        )
+    else:
+        console.log(
+            f"[green]Regenerating keyframe[/green] shot {shot.index} (no character refs)"
+        )
+    return await _generate_keyframe(
+        client,
+        shot=shot,
+        screenplay=screenplay,
+        image_model=keyframe_image_model,
+        aspect_ratio=aspect_ratio,
+        resolution=image_resolution,
+        out_path=out,
+        references=refs,
+    )
+
+
 async def build_moodboards(
     *,
     client: AIAutoClient,
@@ -196,7 +264,14 @@ async def build_moodboards(
         moodboard_tasks.append(_do())
 
     if moodboard_tasks:
-        await asyncio.gather(*moodboard_tasks)
+        # return_exceptions=True so one failed scene moodboard doesn't take
+        # down the keyframes (or the other moodboards).
+        results = await asyncio.gather(*moodboard_tasks, return_exceptions=True)
+        for r in results:
+            if isinstance(r, BaseException):
+                console.log(
+                    f"[yellow]Moodboard skipped[/yellow] ({type(r).__name__}: {r})"
+                )
 
     # Per-shot keyframes (these are what Seedance actually animates from).
     keyframe_paths: dict[int, Path] = {}
@@ -226,7 +301,18 @@ async def build_moodboards(
         )
         return shot.index, path
 
-    results = await asyncio.gather(*[_kf(s) for s in screenplay.shots])
-    for idx, path in results:
+    results = await asyncio.gather(
+        *[_kf(s) for s in screenplay.shots], return_exceptions=True
+    )
+    failures: list[str] = []
+    for shot, r in zip(screenplay.shots, results):
+        if isinstance(r, BaseException):
+            failures.append(f"shot {shot.index} ({type(r).__name__}: {r})")
+            continue
+        idx, path = r
         keyframe_paths[idx] = path
+    if failures:
+        console.log(
+            "[yellow]Keyframes skipped:[/yellow] " + "; ".join(failures)
+        )
     return keyframe_paths

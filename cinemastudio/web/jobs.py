@@ -108,8 +108,9 @@ class JobRunner:
                 raise
             except Exception as exc:  # noqa: BLE001
                 state.status = "failed"
-                state.error = str(exc)
-                emit("error", f"Job failed: {exc}")
+                msg = str(exc) or repr(exc)
+                state.error = f"{type(exc).__name__}: {msg}"
+                emit("error", f"Job failed: {state.error}")
             finally:
                 state.finished_at = time.time()
                 # Sentinel so subscribers can close cleanly.

@@ -74,7 +74,7 @@ class AIAutoClient:
         api_key: str,
         video_concurrency: int = 3,
         image_concurrency: int = 4,
-        timeout: float = 120.0,
+        timeout: float = 600.0,
     ):
         if not api_key:
             raise PermanentError("AI_AUTO_API_KEY is empty. Run `cinema setup`.")
@@ -84,8 +84,13 @@ class AIAutoClient:
         }
         self._video_sem = asyncio.Semaphore(video_concurrency)
         self._image_sem = asyncio.Semaphore(image_concurrency)
+        # Generous read timeout — 4k image generations and large data-URL
+        # uploads can both hold a connection for several minutes. Keep
+        # connect+write tight so genuine network errors still surface fast.
         self._client = httpx.AsyncClient(
-            base_url=BASE_URL, headers=self._headers, timeout=timeout
+            base_url=BASE_URL,
+            headers=self._headers,
+            timeout=httpx.Timeout(timeout, connect=20.0, write=60.0),
         )
 
     async def aclose(self) -> None:
@@ -105,7 +110,15 @@ class AIAutoClient:
             reraise=True,
         ):
             with attempt:
-                resp = await self._client.request(method, path, **kwargs)
+                try:
+                    resp = await self._client.request(method, path, **kwargs)
+                except (httpx.TimeoutException, httpx.NetworkError) as exc:
+                    # Make the message non-empty (httpx.ReadTimeout stringifies
+                    # to "" or just the URL) and retry — temporary network
+                    # blips and slow generations shouldn't kill the job.
+                    raise TransientError(
+                        f"{type(exc).__name__} on {method} {path}: {exc!r}"
+                    ) from exc
                 if resp.status_code in (429, 500, 502, 503, 504):
                     raise TransientError(f"{resp.status_code} on {path}: {resp.text[:200]}")
                 if resp.status_code >= 400:
@@ -215,16 +228,21 @@ class AIAutoClient:
 
     async def download_video(self, gen_id: str, dest: Path) -> Path:
         dest.parent.mkdir(parents=True, exist_ok=True)
-        async with self._client.stream(
-            "GET", f"/generations/{gen_id}/download", follow_redirects=True
-        ) as resp:
-            if resp.status_code >= 400:
-                raise PermanentError(
-                    f"Video download {gen_id} failed: {resp.status_code}"
-                )
-            with dest.open("wb") as f:
-                async for chunk in resp.aiter_bytes(chunk_size=1 << 16):
-                    f.write(chunk)
+        try:
+            async with self._client.stream(
+                "GET", f"/generations/{gen_id}/download", follow_redirects=True
+            ) as resp:
+                if resp.status_code >= 400:
+                    raise PermanentError(
+                        f"Video download {gen_id} failed: {resp.status_code}"
+                    )
+                with dest.open("wb") as f:
+                    async for chunk in resp.aiter_bytes(chunk_size=1 << 16):
+                        f.write(chunk)
+        except (httpx.TimeoutException, httpx.NetworkError) as exc:
+            raise TransientError(
+                f"Video download {gen_id} {type(exc).__name__}: {exc!r}"
+            ) from exc
         return dest
 
     async def download_image(self, gen_id: str, dest: Path) -> Path:

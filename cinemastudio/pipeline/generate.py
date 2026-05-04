@@ -89,7 +89,17 @@ async def animate_all(
                 video_model=video_model,
             )
         )
-    return await asyncio.gather(*tasks)
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+    paths: list[Path] = []
+    failures: list[str] = []
+    for shot, r in zip([s for s in screenplay.shots if s.index in keyframe_paths], results):
+        if isinstance(r, BaseException):
+            failures.append(f"shot {shot.index} ({type(r).__name__}: {r})")
+            continue
+        paths.append(r)
+    if failures:
+        console.log("[yellow]Clips skipped:[/yellow] " + "; ".join(failures))
+    return paths
 
 
 def write_edl(screenplay: Screenplay, project_dir: Path, seconds: int) -> Path:

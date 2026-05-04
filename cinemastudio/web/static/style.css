@@ -385,7 +385,16 @@ main > footer {
   color: var(--muted);
 }
 .thumb img { width: 100%; aspect-ratio: 16/9; object-fit: cover; display: block; background: #000; }
-.thumb .caption { padding: 6px 10px; font-family: var(--mono); font-size: 11px; }
+.thumb a { display: block; }
+.thumb .caption { font-family: var(--mono); font-size: 11px; }
+.thumb-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 10px;
+}
+.thumb .regen-btn { padding: 3px 8px; font-size: 11px; }
 .thumb:hover { border-color: var(--accent); color: var(--text); }
 
 .clip-grid {

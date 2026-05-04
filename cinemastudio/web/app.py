@@ -634,6 +634,63 @@ def create_app() -> FastAPI:
             dest.write_bytes(src.read_bytes())
         return JSONResponse({"ok": True, "characters": _list_project_characters(slug)})
 
+    @app.post("/api/projects/{slug}/regenerate/moodboard/{scene_idx}")
+    async def regenerate_moodboard(slug: str, scene_idx: int) -> JSONResponse:
+        project_dir = PROJECTS_ROOT / slug
+        if not project_dir.exists():
+            raise HTTPException(404, "project not found")
+        cfg = _config()
+        if not cfg.AI_AUTO_API_KEY:
+            raise HTTPException(400, "ai-auto.io key not set")
+        sp = script_mod.load_screenplay(project_dir)
+        try:
+            async with AIAutoClient(
+                api_key=cfg.AI_AUTO_API_KEY,
+                video_concurrency=cfg.VIDEO_CONCURRENCY,
+                image_concurrency=cfg.IMAGE_CONCURRENCY,
+            ) as client:
+                out = await mb_mod.regenerate_scene_moodboard(
+                    client=client,
+                    screenplay=sp,
+                    project_dir=project_dir,
+                    scene_idx=scene_idx,
+                    moodboard_image_model=cfg.MOODBOARD_IMAGE_MODEL,
+                    image_resolution=getattr(cfg, "DEFAULT_IMAGE_RESOLUTION", "4k"),
+                )
+        except Exception as exc:  # noqa: BLE001
+            raise HTTPException(502, f"{type(exc).__name__}: {exc}") from exc
+        return JSONResponse({"ok": True, "filename": out.name})
+
+    @app.post("/api/projects/{slug}/regenerate/keyframe/{shot_idx}")
+    async def regenerate_keyframe(slug: str, shot_idx: int) -> JSONResponse:
+        project_dir = PROJECTS_ROOT / slug
+        if not project_dir.exists():
+            raise HTTPException(404, "project not found")
+        cfg = _config()
+        if not cfg.AI_AUTO_API_KEY:
+            raise HTTPException(400, "ai-auto.io key not set")
+        sp = script_mod.load_screenplay(project_dir)
+        manifest = _read_manifest(slug)
+        aspect_ratio = manifest.get("aspect_ratio") or cfg.DEFAULT_ASPECT_RATIO
+        try:
+            async with AIAutoClient(
+                api_key=cfg.AI_AUTO_API_KEY,
+                video_concurrency=cfg.VIDEO_CONCURRENCY,
+                image_concurrency=cfg.IMAGE_CONCURRENCY,
+            ) as client:
+                out = await mb_mod.regenerate_shot_keyframe(
+                    client=client,
+                    screenplay=sp,
+                    project_dir=project_dir,
+                    shot_index=shot_idx,
+                    keyframe_image_model=cfg.KEYFRAME_IMAGE_MODEL,
+                    aspect_ratio=aspect_ratio,
+                    image_resolution=getattr(cfg, "DEFAULT_IMAGE_RESOLUTION", "4k"),
+                )
+        except Exception as exc:  # noqa: BLE001
+            raise HTTPException(502, f"{type(exc).__name__}: {exc}") from exc
+        return JSONResponse({"ok": True, "filename": out.name})
+
     @app.post("/api/projects/{slug}/cast/update")
     async def cast_update(
         slug: str,

@@ -119,23 +119,37 @@
 </section>
 
 <section class="tab-panel hidden" id="panel-moodboards">
-  <div class="gallery">
+  <p class="muted small">Click any thumb to open. Don't like one? Hit <em>Regenerate</em>.</p>
+  <div class="gallery" id="moodboard-gallery">
     {% for name in data.moodboards %}
-      <a class="thumb" href="/files/{{ data.slug }}/moodboards/{{ name }}" target="_blank">
-        <img src="/files/{{ data.slug }}/moodboards/{{ name }}" alt="{{ name }}" loading="lazy" />
-        <span class="caption">{{ name }}</span>
-      </a>
+      <div class="thumb" data-moodboard="{{ name }}">
+        <a href="/files/{{ data.slug }}/moodboards/{{ name }}" target="_blank">
+          <img src="/files/{{ data.slug }}/moodboards/{{ name }}" alt="{{ name }}" loading="lazy" />
+        </a>
+        <div class="thumb-foot">
+          <span class="caption">{{ name }}</span>
+          {% if "scene_" in name and "_moodboard" in name %}
+            <button class="btn small regen-btn" data-regen-moodboard="{{ name }}">Regenerate</button>
+          {% endif %}
+        </div>
+      </div>
     {% endfor %}
   </div>
 </section>
 
 <section class="tab-panel hidden" id="panel-keyframes">
-  <div class="gallery">
+  <p class="muted small">Click to open. Regenerate any keyframe you don't like — it will reuse the latest character sheets.</p>
+  <div class="gallery" id="keyframe-gallery">
     {% for name in data.keyframes %}
-      <a class="thumb" href="/files/{{ data.slug }}/keyframes/{{ name }}" target="_blank">
-        <img src="/files/{{ data.slug }}/keyframes/{{ name }}" alt="{{ name }}" loading="lazy" />
-        <span class="caption">{{ name }}</span>
-      </a>
+      <div class="thumb" data-keyframe="{{ name }}">
+        <a href="/files/{{ data.slug }}/keyframes/{{ name }}" target="_blank">
+          <img src="/files/{{ data.slug }}/keyframes/{{ name }}" alt="{{ name }}" loading="lazy" />
+        </a>
+        <div class="thumb-foot">
+          <span class="caption">{{ name }}</span>
+          <button class="btn small regen-btn" data-regen-keyframe="{{ name }}">Regenerate</button>
+        </div>
+      </div>
     {% endfor %}
   </div>
 </section>
