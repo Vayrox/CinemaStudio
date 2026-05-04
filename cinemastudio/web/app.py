@@ -131,11 +131,15 @@ def create_app() -> FastAPI:
     def _config():
         return settings.get()
 
-    def _keys_status() -> dict[str, bool]:
+    def _keys_status() -> dict[str, Any]:
         cfg = _config()
+        provider, key = settings.script_provider_key(cfg)
         return {
             "ai_auto": bool(getattr(cfg, "AI_AUTO_API_KEY", "")),
             "anthropic": bool(getattr(cfg, "ANTHROPIC_API_KEY", "")),
+            "google": bool(getattr(cfg, "GOOGLE_API_KEY", "")),
+            "script_provider": provider,
+            "script_provider_ready": bool(key),
         }
 
     # ---------------------------------------------------------------- pages
@@ -150,7 +154,7 @@ def create_app() -> FastAPI:
                 "projects": _list_projects(),
                 "keys": keys,
                 "config": _config(),
-                "needs_setup": not (keys["ai_auto"] and keys["anthropic"]),
+                "needs_setup": not (keys["ai_auto"] and keys["script_provider_ready"]),
             },
         )
 
@@ -171,6 +175,8 @@ def create_app() -> FastAPI:
     async def setup_save(
         ai_auto_api_key: str = Form(""),
         anthropic_api_key: str = Form(""),
+        google_api_key: str = Form(""),
+        script_provider: str = Form("google"),
         default_aspect_ratio: str = Form("16:9"),
         default_resolution: str = Form("4k"),
         default_image_resolution: str = Form("4k"),
@@ -181,7 +187,14 @@ def create_app() -> FastAPI:
         cfg = _config()
         ai_auto = ai_auto_api_key.strip() or cfg.AI_AUTO_API_KEY
         anthropic = anthropic_api_key.strip() or cfg.ANTHROPIC_API_KEY
-        settings.write_keys(ai_auto_key=ai_auto, anthropic_key=anthropic)
+        google = google_api_key.strip() or getattr(cfg, "GOOGLE_API_KEY", "")
+        provider = script_provider if script_provider in ("anthropic", "google") else "google"
+        settings.write_keys(
+            ai_auto_key=ai_auto,
+            anthropic_key=anthropic,
+            google_key=google,
+            script_provider=provider,
+        )
 
         # Update non-secret config fields with simple line replacements.
         text = settings.CONFIG_PATH.read_text()
@@ -338,8 +351,10 @@ def create_app() -> FastAPI:
 
         async def fn(ctx: JobContext) -> None:
             cfg = _config()
-            if kind in {"script", "full"} and not cfg.ANTHROPIC_API_KEY:
-                raise RuntimeError("Anthropic API key missing. Visit /setup.")
+            provider, provider_key = settings.script_provider_key(cfg)
+            if kind in {"script", "full"} and not provider_key:
+                label = "Google AI Studio" if provider == "google" else "Anthropic"
+                raise RuntimeError(f"{label} API key missing. Visit /setup.")
             if not cfg.AI_AUTO_API_KEY and kind != "script":
                 raise RuntimeError("ai-auto.io API key missing. Visit /setup.")
 
@@ -353,10 +368,11 @@ def create_app() -> FastAPI:
                 if kind in {"script", "full"}:
                     if not logline:
                         raise RuntimeError("No logline saved for this project. Recreate it from /new.")
-                    ctx.log("info", f"Generating screenplay for: {logline!r}")
+                    ctx.log("info", f"Generating screenplay via {provider} for: {logline!r}")
                     sp = await asyncio.to_thread(
                         script_mod.generate_screenplay,
-                        api_key=cfg.ANTHROPIC_API_KEY,
+                        provider=provider,
+                        api_key=provider_key,
                         logline=logline,
                         aspect_ratio=aspect_ratio,
                         target_minutes=target_minutes,

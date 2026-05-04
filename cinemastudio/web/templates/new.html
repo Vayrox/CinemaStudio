@@ -52,7 +52,7 @@
       <button class="btn primary" type="submit">Create film</button>
       <a class="btn" href="/">Cancel</a>
     </div>
-    {% if not (keys.ai_auto and keys.anthropic) %}
+    {% if not (keys.ai_auto and keys.script_provider_ready) %}
       <div class="banner warn">API keys missing. <a href="/setup">Configure them</a> before running the pipeline.</div>
     {% endif %}
   </form>

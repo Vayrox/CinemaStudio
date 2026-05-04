@@ -6,7 +6,7 @@
   <p class="muted">AI-generated short films built from a single logline. Pick a project or start a new one.</p>
   {% if needs_setup %}
     <div class="banner warn">
-      API keys missing. <a href="/setup">Add your ai-auto.io and Anthropic keys</a> before running the pipeline.
+      API keys missing. <a href="/setup">Add your ai-auto.io and {{ 'Google AI Studio' if keys.script_provider == 'google' else 'Anthropic' }} keys</a> before running the pipeline.
     </div>
   {% endif %}
   <div class="actions">

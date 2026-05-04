@@ -38,7 +38,7 @@ def cli() -> None:
 @cli.command()
 def setup() -> None:
     """Prompt for and save your API keys (gitignored)."""
-    settings.ensure_keys(require_anthropic=True)
+    settings.ensure_keys(require_script=True)
     console.print(Panel.fit("Setup complete.", style="green"))
 
 
@@ -56,16 +56,20 @@ def script(
     shot_seconds: int | None,
 ) -> None:
     """Generate screenplay + shot list from a logline."""
-    settings.ensure_keys(require_anthropic=True)
+    settings.ensure_keys(require_script=True)
     cfg = settings.get()
     aspect_ratio = aspect_ratio or cfg.DEFAULT_ASPECT_RATIO
     shot_seconds = shot_seconds or cfg.DEFAULT_SHOT_SECONDS
     slug = slug or _slug_from_logline(logline)
     project_dir = _project_dir(slug)
 
-    console.print(f"[bold]Generating screenplay[/bold] -> projects/{slug}/screenplay.json")
+    provider, key = settings.script_provider_key(cfg)
+    console.print(
+        f"[bold]Generating screenplay[/bold] via {provider} -> projects/{slug}/screenplay.json"
+    )
     sp = script_mod.generate_screenplay(
-        api_key=cfg.ANTHROPIC_API_KEY,
+        provider=provider,
+        api_key=key,
         logline=logline,
         aspect_ratio=aspect_ratio,
         target_minutes=target_minutes,
@@ -81,7 +85,7 @@ def script(
 @click.option("--ratio", "aspect_ratio", default=None)
 def moodboard(slug: str, aspect_ratio: str | None) -> None:
     """Generate moodboards + per-shot keyframes from an existing screenplay."""
-    settings.ensure_keys(require_anthropic=False)
+    settings.ensure_keys(require_script=False)
     cfg = settings.get()
     aspect_ratio = aspect_ratio or cfg.DEFAULT_ASPECT_RATIO
     project_dir = _project_dir(slug)
@@ -120,7 +124,7 @@ def generate(
     shot_seconds: int | None,
 ) -> None:
     """Animate keyframes into Seedance 2.0 clips."""
-    settings.ensure_keys(require_anthropic=False)
+    settings.ensure_keys(require_script=False)
     cfg = settings.get()
     aspect_ratio = aspect_ratio or cfg.DEFAULT_ASPECT_RATIO
     resolution = resolution or cfg.DEFAULT_RESOLUTION
@@ -183,7 +187,7 @@ def make(
     shot_seconds: int | None,
 ) -> None:
     """Run the full pipeline: script -> moodboards -> animate."""
-    settings.ensure_keys(require_anthropic=True)
+    settings.ensure_keys(require_script=True)
     cfg = settings.get()
     aspect_ratio = aspect_ratio or cfg.DEFAULT_ASPECT_RATIO
     resolution = resolution or cfg.DEFAULT_RESOLUTION
@@ -192,8 +196,10 @@ def make(
     project_dir = _project_dir(slug)
 
     console.print(Panel.fit(f"Project: [bold]{slug}[/bold]\nLogline: {logline}"))
+    provider, key = settings.script_provider_key(cfg)
     sp = script_mod.generate_screenplay(
-        api_key=cfg.ANTHROPIC_API_KEY,
+        provider=provider,
+        api_key=key,
         logline=logline,
         aspect_ratio=aspect_ratio,
         target_minutes=target_minutes,
@@ -242,7 +248,7 @@ def web(host: str, port: int, reload: bool) -> None:
 @cli.command()
 def quota() -> None:
     """Show your ai-auto.io quota and plan."""
-    settings.ensure_keys(require_anthropic=False)
+    settings.ensure_keys(require_script=False)
     cfg = settings.get()
 
     async def _go():

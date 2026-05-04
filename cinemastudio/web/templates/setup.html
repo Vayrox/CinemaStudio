@@ -12,10 +12,26 @@
     <label>
       <span>ai-auto.io API key {% if keys.ai_auto %}<em class="muted">(set)</em>{% endif %}</span>
       <input type="password" name="ai_auto_api_key" placeholder="{{ '••••••••' if keys.ai_auto else 'paste key' }}" autocomplete="off" />
+      <small class="hint">Used for Seedance video + image generation.</small>
+    </label>
+
+    <h3>Script generator</h3>
+    <label>
+      <span>Provider</span>
+      <select name="script_provider">
+        <option value="google" {% if keys.script_provider == 'google' %}selected{% endif %}>Google AI Studio (Gemini) — free key at aistudio.google.com</option>
+        <option value="anthropic" {% if keys.script_provider == 'anthropic' %}selected{% endif %}>Anthropic (Claude) — console.anthropic.com</option>
+      </select>
+    </label>
+    <label>
+      <span>Google AI Studio API key {% if keys.google %}<em class="muted">(set)</em>{% endif %}</span>
+      <input type="password" name="google_api_key" placeholder="{{ '••••••••' if keys.google else 'paste key' }}" autocomplete="off" />
+      <small class="hint">Get one free at <a href="https://aistudio.google.com/" target="_blank" rel="noopener">aistudio.google.com</a>.</small>
     </label>
     <label>
       <span>Anthropic API key {% if keys.anthropic %}<em class="muted">(set)</em>{% endif %}</span>
       <input type="password" name="anthropic_api_key" placeholder="{{ '••••••••' if keys.anthropic else 'paste key' }}" autocomplete="off" />
+      <small class="hint">Optional — only needed if you choose the Anthropic provider above.</small>
     </label>
     <p class="hint">Leave a field blank to keep the existing key.</p>
 

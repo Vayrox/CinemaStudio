@@ -15,6 +15,15 @@ The browser UI walks you through:
 3. Running each pipeline step (script → moodboards → animate) or the whole thing in one click.
 4. Watching a live log of progress, then browsing the generated screenplay, moodboards, keyframes, and rendered clips inline. Download the EDL CSV when you're ready to edit.
 
+### Script generator: Google AI Studio (free) or Anthropic
+
+Pick a provider on the Settings page:
+
+* **Google AI Studio (default)** — grab a free key at <https://aistudio.google.com/>, paste it into Settings, done. Uses Gemini 2.5 Pro for screenplay generation.
+* **Anthropic** — paste a Claude key from <https://console.anthropic.com/>. Uses Claude Sonnet 4.6.
+
+Either provider produces the same screenplay JSON; the rest of the pipeline (images + video) always goes through ai-auto.io.
+
 ## Quickstart — CLI
 
 ```bash

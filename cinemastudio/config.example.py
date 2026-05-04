@@ -8,8 +8,16 @@ You can also let `cinema setup` create config.py for you interactively.
 # ai-auto.io API key (https://ai-auto.io/ → account)
 AI_AUTO_API_KEY = ""
 
+# Script provider: which LLM writes screenplays + shot lists.
+#   "anthropic" — Claude (https://console.anthropic.com/)
+#   "google"    — Gemini via Google AI Studio (https://aistudio.google.com/)
+SCRIPT_PROVIDER = "google"
+
 # Anthropic API key for script generation (https://console.anthropic.com/)
 ANTHROPIC_API_KEY = ""
+
+# Google AI Studio API key for script generation (https://aistudio.google.com/)
+GOOGLE_API_KEY = ""
 
 # Defaults — override via CLI flags
 DEFAULT_ASPECT_RATIO = "16:9"

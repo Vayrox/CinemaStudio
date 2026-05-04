@@ -1,4 +1,13 @@
-"""Logline -> screenplay + shot list, via Claude."""
+"""Logline -> screenplay + shot list, via the configured LLM provider.
+
+Two providers are supported:
+
+* `anthropic` — Claude (`claude-sonnet-4-6` by default).
+* `google`    — Gemini via Google AI Studio (`gemini-2.5-pro` by default).
+
+Both produce the same JSON schema for `Screenplay`. We ask for `application/json`
+output where the SDK supports it, then validate with pydantic.
+"""
 from __future__ import annotations
 
 import json
@@ -6,11 +15,10 @@ import math
 import re
 from pathlib import Path
 
-from anthropic import Anthropic
-
 from cinemastudio.models import Screenplay
 
-MODEL = "claude-sonnet-4-6"
+ANTHROPIC_MODEL = "claude-sonnet-4-6"
+GOOGLE_MODEL = "gemini-2.5-pro"
 PROMPT_DIR = Path(__file__).parent.parent / "prompts"
 
 
@@ -19,24 +27,15 @@ def _load_system_prompt() -> str:
 
 
 def _strip_json_fences(text: str) -> str:
-    # Models occasionally wrap JSON in ```json ... ``` despite instructions.
     m = re.search(r"```(?:json)?\s*(\{.*\})\s*```", text, flags=re.DOTALL)
     if m:
         return m.group(1)
     return text.strip()
 
 
-def generate_screenplay(
-    *,
-    api_key: str,
-    logline: str,
-    aspect_ratio: str,
-    target_minutes: float,
-    shot_seconds: int,
-) -> Screenplay:
-    client = Anthropic(api_key=api_key)
+def _user_prompt(logline: str, aspect_ratio: str, target_minutes: float, shot_seconds: int) -> str:
     expected_shots = max(1, math.ceil(target_minutes * 60 / shot_seconds))
-    user = (
+    return (
         f"Logline: {logline}\n"
         f"Aspect ratio: {aspect_ratio}\n"
         f"Target length: {target_minutes} minutes\n"
@@ -44,13 +43,58 @@ def generate_screenplay(
         f"Expected shot count: {expected_shots}\n\n"
         "Return the JSON object only."
     )
+
+
+def _generate_anthropic(api_key: str, system: str, user: str) -> str:
+    from anthropic import Anthropic
+
+    client = Anthropic(api_key=api_key)
     msg = client.messages.create(
-        model=MODEL,
+        model=ANTHROPIC_MODEL,
         max_tokens=16000,
-        system=_load_system_prompt(),
+        system=system,
         messages=[{"role": "user", "content": user}],
     )
-    raw = "".join(b.text for b in msg.content if getattr(b, "type", None) == "text")
+    return "".join(b.text for b in msg.content if getattr(b, "type", None) == "text")
+
+
+def _generate_google(api_key: str, system: str, user: str) -> str:
+    from google import genai
+    from google.genai import types
+
+    client = genai.Client(api_key=api_key)
+    resp = client.models.generate_content(
+        model=GOOGLE_MODEL,
+        contents=user,
+        config=types.GenerateContentConfig(
+            system_instruction=system,
+            response_mime_type="application/json",
+            max_output_tokens=16000,
+        ),
+    )
+    return resp.text or ""
+
+
+def generate_screenplay(
+    *,
+    provider: str,
+    api_key: str,
+    logline: str,
+    aspect_ratio: str,
+    target_minutes: float,
+    shot_seconds: int,
+) -> Screenplay:
+    system = _load_system_prompt()
+    user = _user_prompt(logline, aspect_ratio, target_minutes, shot_seconds)
+
+    provider = (provider or "google").lower()
+    if provider == "anthropic":
+        raw = _generate_anthropic(api_key, system, user)
+    elif provider == "google":
+        raw = _generate_google(api_key, system, user)
+    else:
+        raise ValueError(f"Unknown script provider: {provider!r}")
+
     cleaned = _strip_json_fences(raw)
     data = json.loads(cleaned)
     return Screenplay.model_validate(data)
