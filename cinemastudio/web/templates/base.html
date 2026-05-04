@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>{% block title %}CinemaStudio{% endblock %}</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/">
+      <span class="reel">◉</span>
+      <span class="brand-name">Cinema<span class="accent">Studio</span></span>
+    </a>
+    <nav>
+      <a href="/">Projects</a>
+      <a href="/new">New film</a>
+      <a href="/setup">Settings</a>
+    </nav>
+    <div class="status">
+      {% if keys is defined %}
+        <span class="dot {{ 'ok' if keys.ai_auto else 'off' }}" title="ai-auto.io key"></span>
+        <span class="dot {{ 'ok' if keys.anthropic else 'off' }}" title="Anthropic key"></span>
+      {% endif %}
+    </div>
+  </header>
+  <main>
+    {% block content %}{% endblock %}
+  </main>
+  <footer>
+    CinemaStudio · logline → screenplay → keyframes → Seedance 2.0
+  </footer>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

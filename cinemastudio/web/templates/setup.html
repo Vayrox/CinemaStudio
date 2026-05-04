@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block title %}CinemaStudio · Settings{% endblock %}
+{% block content %}
+<section class="form-page">
+  <h1>Settings</h1>
+  <p class="muted">Stored locally in <code>cinemastudio/config.py</code> (gitignored).</p>
+
+  {% if saved %}<div class="banner ok">Saved.</div>{% endif %}
+
+  <form method="post" action="/setup" class="card form">
+    <h3>API keys</h3>
+    <label>
+      <span>ai-auto.io API key {% if keys.ai_auto %}<em class="muted">(set)</em>{% endif %}</span>
+      <input type="password" name="ai_auto_api_key" placeholder="{{ '••••••••' if keys.ai_auto else 'paste key' }}" autocomplete="off" />
+    </label>
+    <label>
+      <span>Anthropic API key {% if keys.anthropic %}<em class="muted">(set)</em>{% endif %}</span>
+      <input type="password" name="anthropic_api_key" placeholder="{{ '••••••••' if keys.anthropic else 'paste key' }}" autocomplete="off" />
+    </label>
+    <p class="hint">Leave a field blank to keep the existing key.</p>
+
+    <h3>Defaults</h3>
+    <div class="row">
+      <label>
+        <span>Aspect ratio</span>
+        <select name="default_aspect_ratio">
+          {% for opt in ["16:9","9:16","1:1","4:3","3:4"] %}
+            <option value="{{opt}}" {% if config.DEFAULT_ASPECT_RATIO==opt %}selected{% endif %}>{{opt}}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>
+        <span>Video resolution</span>
+        <select name="default_resolution">
+          {% for opt in ["720p","1080p","4k"] %}
+            <option value="{{opt}}" {% if config.DEFAULT_RESOLUTION==opt %}selected{% endif %}>{{opt}}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>
+        <span>Image resolution</span>
+        <select name="default_image_resolution">
+          {% for opt in ["1k","2k","4k"] %}
+            <option value="{{opt}}" {% if config.DEFAULT_IMAGE_RESOLUTION==opt %}selected{% endif %}>{{opt}}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>
+        <span>Shot seconds</span>
+        <select name="default_shot_seconds">
+          {% for opt in [5,10,15] %}
+            <option value="{{opt}}" {% if config.DEFAULT_SHOT_SECONDS==opt %}selected{% endif %}>{{opt}}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>
+        <span>Video concurrency</span>
+        <input type="number" min="1" max="8" name="video_concurrency" value="{{ config.VIDEO_CONCURRENCY }}" />
+      </label>
+      <label>
+        <span>Image concurrency</span>
+        <input type="number" min="1" max="8" name="image_concurrency" value="{{ config.IMAGE_CONCURRENCY }}" />
+      </label>
+    </div>
+
+    <div class="actions">
+      <button type="submit" class="btn primary">Save settings</button>
+      <a class="btn" href="/">Back</a>
+    </div>
+  </form>
+</section>
+{% endblock %}

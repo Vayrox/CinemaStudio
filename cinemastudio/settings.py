@@ -8,12 +8,21 @@ from rich.console import Console
 from rich.prompt import Prompt
 
 CONFIG_PATH = Path(__file__).parent / "config.py"
+EXAMPLE_CONFIG_PATH = Path(__file__).parent / "config.example.py"
 console = Console()
+
+
+def ensure_config_file() -> Path:
+    """Make sure config.py exists. Bootstrap from config.example.py if not."""
+    if not CONFIG_PATH.exists():
+        CONFIG_PATH.write_text(EXAMPLE_CONFIG_PATH.read_text())
+    return CONFIG_PATH
 
 
 def _load_config_module():
     import importlib
 
+    ensure_config_file()
     if "cinemastudio.config" in sys.modules:
         importlib.reload(sys.modules["cinemastudio.config"])
     from cinemastudio import config

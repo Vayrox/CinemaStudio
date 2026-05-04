@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block title %}CinemaStudio · New film{% endblock %}
+{% block content %}
+<section class="form-page">
+  <h1>New film</h1>
+  <p class="muted">Describe your film in one sentence. We'll generate the screenplay, moodboards, and animated shots.</p>
+
+  <form method="post" action="/new" class="card form">
+    <label>
+      <span>Logline <em class="muted">(one sentence)</em></span>
+      <textarea name="logline" rows="3" required placeholder="A lonely lighthouse keeper discovers a glowing creature in the surf at dawn."></textarea>
+    </label>
+    <label>
+      <span>Project slug <em class="muted">(optional, derived from logline)</em></span>
+      <input type="text" name="slug" placeholder="lighthouse" pattern="[a-zA-Z0-9-]*" />
+    </label>
+    <div class="row">
+      <label>
+        <span>Aspect ratio</span>
+        <select name="aspect_ratio">
+          {% for opt in ["16:9","9:16","1:1","4:3","3:4"] %}
+            <option value="{{opt}}" {% if config.DEFAULT_ASPECT_RATIO==opt %}selected{% endif %}>{{opt}}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>
+        <span>Length (minutes)</span>
+        <input type="number" name="target_minutes" step="0.25" min="0.25" value="1" />
+      </label>
+      <label>
+        <span>Shot seconds</span>
+        <select name="shot_seconds">
+          {% for opt in [5,10,15] %}
+            <option value="{{opt}}" {% if config.DEFAULT_SHOT_SECONDS==opt %}selected{% endif %}>{{opt}}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>
+        <span>Video resolution</span>
+        <select name="resolution">
+          {% for opt in ["720p","1080p","4k"] %}
+            <option value="{{opt}}" {% if config.DEFAULT_RESOLUTION==opt %}selected{% endif %}>{{opt}}</option>
+          {% endfor %}
+        </select>
+      </label>
+    </div>
+    <label class="checkbox">
+      <input type="checkbox" name="run_full" />
+      <span>Run the full pipeline now (script → moodboards → animate). Otherwise only the screenplay is generated and you can run each step manually.</span>
+    </label>
+    <div class="actions">
+      <button class="btn primary" type="submit">Create film</button>
+      <a class="btn" href="/">Cancel</a>
+    </div>
+    {% if not (keys.ai_auto and keys.anthropic) %}
+      <div class="banner warn">API keys missing. <a href="/setup">Configure them</a> before running the pipeline.</div>
+    {% endif %}
+  </form>
+</section>
+{% endblock %}

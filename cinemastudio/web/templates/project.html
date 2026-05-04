@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+{% block title %}{{ data.slug }} · CinemaStudio{% endblock %}
+{% block content %}
+{% set sp = data.screenplay %}
+<section class="project-head">
+  <div>
+    <a href="/" class="muted small">← Projects</a>
+    <h1>{{ sp.title if sp else data.slug }}</h1>
+    <p class="muted">{{ sp.logline if sp else manifest.logline or "(no logline saved)" }}</p>
+    {% if sp %}
+      <p class="muted small">Style: {{ sp.style }} · {{ sp.aspect_ratio }} · {{ sp.scenes|length }} scenes · {{ sp.shots|length }} shots</p>
+    {% endif %}
+  </div>
+  <div class="run-controls">
+    <span id="job-status" class="badge {{ data.job.status if data.job else 'idle' }}">
+      {{ data.job.status if data.job else 'idle' }}
+    </span>
+    <button class="btn" data-run="script">Generate script</button>
+    <button class="btn" data-run="moodboard" {% if not sp %}disabled{% endif %}>Moodboards + keyframes</button>
+    <button class="btn" data-run="generate" {% if not sp %}disabled{% endif %}>Animate (Seedance)</button>
+    <button class="btn primary" data-run="full">Run full pipeline</button>
+    <button class="btn danger" data-cancel>Cancel</button>
+  </div>
+</section>
+
+<div class="tabs">
+  <button class="tab active" data-tab="logs">Live log</button>
+  <button class="tab" data-tab="screenplay" {% if not sp %}disabled{% endif %}>Screenplay</button>
+  <button class="tab" data-tab="moodboards" {% if not data.moodboards %}disabled{% endif %}>Moodboards</button>
+  <button class="tab" data-tab="keyframes" {% if not data.keyframes %}disabled{% endif %}>Keyframes</button>
+  <button class="tab" data-tab="clips" {% if not data.clips %}disabled{% endif %}>Clips</button>
+</div>
+
+<section class="tab-panel" id="panel-logs">
+  <div class="log" id="log"></div>
+</section>
+
+<section class="tab-panel hidden" id="panel-screenplay">
+  {% if sp %}
+    <div class="actions inline">
+      <a class="btn small" href="/files/{{ data.slug }}/screenplay" target="_blank">Download screenplay.json</a>
+    </div>
+    <div class="scenes">
+      {% for scene in sp.scenes %}
+        <div class="card scene">
+          <h3>Scene {{ scene.index }} · {{ scene.title }}</h3>
+          <p class="muted small">{{ scene.location }} · {{ scene.time_of_day }} · mood: {{ scene.mood }}</p>
+          <p>{{ scene.summary }}</p>
+          <div class="shot-list">
+            {% for shot in sp.shots if shot.scene == scene.index %}
+              <div class="shot">
+                <div class="shot-num">#{{ "%03d"|format(shot.index) }}</div>
+                <div class="shot-body">
+                  <p>{{ shot.description }}</p>
+                  <p class="muted small"><strong>Motion:</strong> {{ shot.motion_prompt }}</p>
+                  <p class="muted small"><strong>Keyframe:</strong> {{ shot.keyframe_prompt }}</p>
+                </div>
+              </div>
+            {% endfor %}
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+  {% endif %}
+</section>
+
+<section class="tab-panel hidden" id="panel-moodboards">
+  <div class="gallery">
+    {% for name in data.moodboards %}
+      <a class="thumb" href="/files/{{ data.slug }}/moodboards/{{ name }}" target="_blank">
+        <img src="/files/{{ data.slug }}/moodboards/{{ name }}" alt="{{ name }}" loading="lazy" />
+        <span class="caption">{{ name }}</span>
+      </a>
+    {% endfor %}
+  </div>
+</section>
+
+<section class="tab-panel hidden" id="panel-keyframes">
+  <div class="gallery">
+    {% for name in data.keyframes %}
+      <a class="thumb" href="/files/{{ data.slug }}/keyframes/{{ name }}" target="_blank">
+        <img src="/files/{{ data.slug }}/keyframes/{{ name }}" alt="{{ name }}" loading="lazy" />
+        <span class="caption">{{ name }}</span>
+      </a>
+    {% endfor %}
+  </div>
+</section>
+
+<section class="tab-panel hidden" id="panel-clips">
+  {% if data.has_edl %}
+    <div class="actions inline"><a class="btn small" href="/files/{{ data.slug }}/edl">Download EDL (CSV)</a></div>
+  {% endif %}
+  <div class="clip-grid">
+    {% for name in data.clips %}
+      <div class="clip-card">
+        <video src="/files/{{ data.slug }}/clips/{{ name }}" controls preload="metadata"></video>
+        <div class="caption">{{ name }}</div>
+      </div>
+    {% endfor %}
+  </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  window.SLUG = {{ data.slug | tojson }};
+  window.JOB_STATUS = {{ (data.job.status if data.job else 'idle') | tojson }};
+</script>
+<script src="/static/project.js"></script>
+{% endblock %}

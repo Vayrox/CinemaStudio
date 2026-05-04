@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}CinemaStudio · Projects{% endblock %}
+{% block content %}
+<section class="hero">
+  <h1>Your films</h1>
+  <p class="muted">AI-generated short films built from a single logline. Pick a project or start a new one.</p>
+  {% if needs_setup %}
+    <div class="banner warn">
+      API keys missing. <a href="/setup">Add your ai-auto.io and Anthropic keys</a> before running the pipeline.
+    </div>
+  {% endif %}
+  <div class="actions">
+    <a class="btn primary" href="/new">+ New film</a>
+    <a class="btn" href="/setup">Settings</a>
+  </div>
+</section>
+
+{% if projects %}
+<section class="grid">
+  {% for p in projects %}
+    <a class="card project-card" href="/projects/{{ p.slug }}">
+      <div class="card-head">
+        <h3>{{ p.title }}</h3>
+        {% if p.job %}
+          <span class="badge {{ p.job.status }}">{{ p.job.status }}</span>
+        {% endif %}
+      </div>
+      <p class="muted small">{{ p.logline or "(no screenplay yet)" }}</p>
+      <ul class="meta">
+        <li><strong>{{ p.scenes }}</strong> scenes</li>
+        <li><strong>{{ p.shots }}</strong> shots</li>
+        <li><strong>{{ p.keyframes }}</strong> keyframes</li>
+        <li><strong>{{ p.clips }}</strong> clips</li>
+      </ul>
+      <div class="slug">{{ p.slug }}</div>
+    </a>
+  {% endfor %}
+</section>
+{% else %}
+<section class="empty">
+  <p>No films yet. <a href="/new">Create your first one</a>.</p>
+</section>
+{% endif %}
+{% endblock %}

@@ -4,8 +4,11 @@ cinemastudio/config.py
 # Project working dirs (generated content)
 projects/*/clips/
 projects/*/moodboards/
+projects/*/keyframes/
 projects/*/characters/
 projects/*/raw/
+projects/*/job.log
+projects/*/project.json
 
 # Python
 __pycache__/

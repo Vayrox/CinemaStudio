@@ -214,6 +214,32 @@ def make(
 
 
 @cli.command()
+@click.option("--host", default="127.0.0.1", show_default=True, help="Host interface to bind.")
+@click.option("--port", default=8765, show_default=True, type=int, help="Port to listen on.")
+@click.option("--reload/--no-reload", default=False, help="Auto-reload on code changes (dev).")
+def web(host: str, port: int, reload: bool) -> None:
+    """Launch the CinemaStudio web UI."""
+    try:
+        import uvicorn
+    except ImportError as exc:  # noqa: BLE001
+        console.print(
+            "[red]uvicorn not installed.[/red] Reinstall with `pip install -e .` to pull in web deps."
+        )
+        raise SystemExit(1) from exc
+
+    settings.ensure_config_file()
+    url = f"http://{host}:{port}"
+    console.print(Panel.fit(f"CinemaStudio UI starting at [bold cyan]{url}[/bold cyan]", style="green"))
+    uvicorn.run(
+        "cinemastudio.web.app:create_app",
+        host=host,
+        port=port,
+        reload=reload,
+        factory=True,
+    )
+
+
+@cli.command()
 def quota() -> None:
     """Show your ai-auto.io quota and plan."""
     settings.ensure_keys(require_anthropic=False)
