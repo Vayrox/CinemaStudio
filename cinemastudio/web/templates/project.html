@@ -26,6 +26,7 @@
 <div class="tabs">
   <button class="tab active" data-tab="logs">Live log</button>
   <button class="tab" data-tab="screenplay" {% if not sp %}disabled{% endif %}>Screenplay</button>
+  <button class="tab" data-tab="characters">Characters{% if data.characters %} ({{ data.characters|length }}){% endif %}</button>
   <button class="tab" data-tab="moodboards" {% if not data.moodboards %}disabled{% endif %}>Moodboards</button>
   <button class="tab" data-tab="keyframes" {% if not data.keyframes %}disabled{% endif %}>Keyframes</button>
   <button class="tab" data-tab="clips" {% if not data.clips %}disabled{% endif %}>Clips</button>
@@ -61,6 +62,44 @@
         </div>
       {% endfor %}
     </div>
+  {% endif %}
+</section>
+
+<section class="tab-panel hidden" id="panel-characters">
+  <div class="actions inline">
+    <button class="btn primary" id="char-new-btn">+ Add character</button>
+    <button class="btn" id="char-import-btn">Import from library</button>
+    <span class="muted small">Portraits are used as locked references for every keyframe with that character.</span>
+  </div>
+  <div class="char-grid" id="char-grid">
+    {% for ch in data.characters %}
+      <div class="char-card" data-char-slug="{{ ch.safe_name }}">
+        <div class="char-portrait">
+          {% if ch.has_portrait %}
+            <img src="/files/{{ data.slug }}/characters/{{ ch.safe_name }}.jpg?t={{ data.job.started_at if data.job else 0 }}" alt="{{ ch.name }}" />
+          {% else %}
+            <div class="char-portrait-placeholder">no portrait</div>
+          {% endif %}
+        </div>
+        <div class="char-body">
+          <h4>{{ ch.name }}</h4>
+          <span class="badge {{ ch.source }}">{{ ch.source }}</span>
+          <p class="muted small">{{ ch.description or '(no description)' }}</p>
+          <div class="char-actions">
+            <button class="btn small" data-char-action="regen">Generate portrait</button>
+            <label class="btn small">
+              Upload<input type="file" accept="image/*" data-char-action="upload" hidden />
+            </label>
+            <button class="btn small" data-char-action="edit">Edit</button>
+            <button class="btn small" data-char-action="save-to-library">→ Library</button>
+            <button class="btn small danger" data-char-action="delete">Delete</button>
+          </div>
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+  {% if not data.characters %}
+    <p class="muted">No characters yet. Generate the screenplay first to auto-import its cast, or add one manually.</p>
   {% endif %}
 </section>
 
@@ -106,5 +145,7 @@
   window.SLUG = {{ data.slug | tojson }};
   window.JOB_STATUS = {{ (data.job.status if data.job else 'idle') | tojson }};
 </script>
+<script src="/static/characters.js"></script>
 <script src="/static/project.js"></script>
+<script src="/static/project_characters.js"></script>
 {% endblock %}

@@ -317,3 +317,135 @@ footer {
 .clip-card .caption { padding: 8px 10px; font-family: var(--mono); font-size: 11px; color: var(--muted); }
 
 code { background: var(--bg-3); padding: 1px 5px; border-radius: 4px; font-family: var(--mono); font-size: 12px; }
+
+/* idea generator */
+.ideas-panel {
+  margin-top: 12px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-3);
+}
+.ideas-panel.hidden { display: none; }
+.ideas-head { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+.ideas-head input {
+  flex: 1;
+  min-width: 200px;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 9px 12px;
+  font-size: 14px;
+}
+.ideas-list { display: flex; flex-direction: column; gap: 8px; }
+.idea-item {
+  text-align: left;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 10px 12px;
+  cursor: pointer;
+  font-size: 13px;
+  font-family: var(--sans);
+  line-height: 1.5;
+  transition: border-color 120ms, background 120ms;
+}
+.idea-item:hover { border-color: var(--accent); background: var(--bg-2); }
+
+/* character grid */
+.char-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 14px;
+  margin-top: 12px;
+}
+.char-card {
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.char-portrait { aspect-ratio: 1/1; background: #000; position: relative; }
+.char-portrait img { width: 100%; height: 100%; object-fit: cover; }
+.char-portrait-placeholder {
+  width: 100%; height: 100%;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--muted); font-size: 12px; font-family: var(--mono);
+}
+.char-body { padding: 12px; display: flex; flex-direction: column; gap: 6px; }
+.char-body h4 { margin: 0; font-size: 15px; }
+.char-body .badge { align-self: flex-start; font-size: 10px; padding: 2px 8px; }
+.badge.script { color: #052e16; background: var(--ok); border-color: var(--ok); }
+.badge.manual { color: #1e3a8a; background: #93c5fd; border-color: #93c5fd; }
+.badge.imported { color: #4c1d95; background: #c4b5fd; border-color: #c4b5fd; }
+.char-actions { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+.char-actions .btn { flex: 0 1 auto; }
+.char-actions .btn.busy { opacity: 0.6; pointer-events: none; }
+.char-actions .btn.busy::after { content: " ..."; }
+
+/* modal */
+.modal-overlay {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.7);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 100;
+  padding: 20px;
+}
+.modal-card {
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 22px;
+  width: 100%;
+  max-width: 480px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  box-shadow: var(--shadow);
+}
+.modal-card.wide { max-width: 760px; max-height: 80vh; }
+.modal-card h3 { margin: 0; }
+.modal-card label { display: flex; flex-direction: column; gap: 6px; }
+.modal-card input, .modal-card textarea {
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 9px 12px;
+  font-family: var(--sans);
+  font-size: 14px;
+}
+.modal-card textarea { resize: vertical; min-height: 80px; }
+.modal-card .actions { justify-content: flex-end; }
+
+/* library picker grid */
+.lib-pick-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 10px;
+  overflow-y: auto;
+  max-height: 60vh;
+}
+.lib-pick {
+  background: var(--bg-3);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  text-align: left;
+  color: var(--text);
+  font-family: var(--sans);
+  padding: 0;
+}
+.lib-pick:hover { border-color: var(--accent); }
+.lib-pick img, .lib-pick .char-portrait-placeholder {
+  width: 100%; aspect-ratio: 1/1; object-fit: cover; background: #000;
+}
+.lib-pick-meta { padding: 8px 10px; display: flex; flex-direction: column; gap: 2px; }
+.lib-pick-meta strong { font-size: 13px; }

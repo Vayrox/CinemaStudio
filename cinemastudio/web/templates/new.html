@@ -7,9 +7,23 @@
 
   <form method="post" action="/new" class="card form">
     <label>
-      <span>Logline <em class="muted">(one sentence)</em></span>
-      <textarea name="logline" rows="3" required placeholder="A lonely lighthouse keeper discovers a glowing creature in the surf at dawn."></textarea>
+      <span>
+        Logline <em class="muted">(one sentence)</em>
+        <button type="button" class="btn small" id="ideas-btn" style="float:right">Need ideas?</button>
+      </span>
+      <textarea name="logline" id="logline" rows="3" required placeholder="A lonely lighthouse keeper discovers a glowing creature in the surf at dawn."></textarea>
     </label>
+
+    <div id="ideas-panel" class="ideas-panel hidden">
+      <div class="ideas-head">
+        <input type="text" id="ideas-seed" placeholder="Type a vague theme: regret, robots, family secrets..." />
+        <button type="button" class="btn primary" id="ideas-go">Generate 10 loglines</button>
+        <button type="button" class="btn small" id="ideas-close">Close</button>
+      </div>
+      <div class="ideas-list" id="ideas-list">
+        <p class="muted small">Type a theme and click Generate. Click any logline to use it.</p>
+      </div>
+    </div>
     <label>
       <span>Project slug <em class="muted">(optional, derived from logline)</em></span>
       <input type="text" name="slug" placeholder="lighthouse" pattern="[a-zA-Z0-9-]*" />
@@ -57,4 +71,8 @@
     {% endif %}
   </form>
 </section>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/new.js"></script>
 {% endblock %}

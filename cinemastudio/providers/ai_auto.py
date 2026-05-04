@@ -183,8 +183,9 @@ class AIAutoClient:
         image_model: str,
         aspect_ratio: str = "16:9",
         resolution: str = "1k",
+        reference_images: list[str] | None = None,
     ) -> Generation:
-        body = {
+        body: dict[str, Any] = {
             "prompt": prompt,
             "mode": "images",
             "model": "standard",
@@ -192,6 +193,11 @@ class AIAutoClient:
             "aspect_ratio": aspect_ratio,
             "resolution": resolution,
         }
+        if reference_images:
+            # ai-auto.io image models that support refs (e.g. nano_banana_pro,
+            # gtv_seedream_4_5) read up to 2 images from this field and lock
+            # identity / wardrobe / setting from them.
+            body["reference_images"] = list(reference_images)[:2]
         async with self._image_sem:
             gen_id = await self._start_generation(body)
             return await self._poll(gen_id)

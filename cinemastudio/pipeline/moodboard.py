@@ -20,9 +20,29 @@ from PIL import Image
 from rich.console import Console
 
 from cinemastudio.models import Screenplay, Shot
-from cinemastudio.providers.ai_auto import AIAutoClient
+from cinemastudio.providers.ai_auto import AIAutoClient, file_to_data_url
 
 console = Console()
+
+
+def _project_character_path(project_dir: Path, name: str) -> Path:
+    """Resolve the per-project portrait path for a character name."""
+    import re
+
+    safe = re.sub(r"[^a-z0-9]+", "-", (name or "").lower()).strip("-") or "character"
+    return project_dir / "characters" / f"{safe}.jpg"
+
+
+def _references_for_shot(project_dir: Path, shot: Shot) -> list[str]:
+    """Return up to 2 character portrait data URLs for the given shot."""
+    refs: list[str] = []
+    for name in shot.character_names or []:
+        p = _project_character_path(project_dir, name)
+        if p.exists():
+            refs.append(file_to_data_url(p))
+        if len(refs) == 2:
+            break
+    return refs
 
 
 def _moodboard_prompt(screenplay: Screenplay, scene_idx: int, shots: list[Shot]) -> str:
@@ -71,6 +91,7 @@ async def _generate_keyframe(
     aspect_ratio: str,
     resolution: str,
     out_path: Path,
+    references: list[str] | None = None,
 ) -> Path:
     style_suffix = f" Visual style: {screenplay.style}."
     prompt = shot.keyframe_prompt + style_suffix
@@ -79,6 +100,7 @@ async def _generate_keyframe(
         image_model=image_model,
         aspect_ratio=aspect_ratio,
         resolution=resolution,
+        reference_images=references,
     )
     await client.download_image(gen.id, out_path)
     return out_path
@@ -138,7 +160,14 @@ async def build_moodboards(
 
     async def _kf(shot: Shot) -> tuple[int, Path]:
         out = keyframes_dir / f"shot_{shot.index:03d}.jpg"
-        console.log(f"[green]Keyframe[/green] shot {shot.index}")
+        refs = _references_for_shot(project_dir, shot)
+        if refs:
+            console.log(
+                f"[green]Keyframe[/green] shot {shot.index} (with "
+                f"{len(refs)} character ref{'s' if len(refs) != 1 else ''})"
+            )
+        else:
+            console.log(f"[green]Keyframe[/green] shot {shot.index}")
         path = await _generate_keyframe(
             client,
             shot=shot,
@@ -147,6 +176,7 @@ async def build_moodboards(
             aspect_ratio=aspect_ratio,
             resolution=image_resolution,
             out_path=out,
+            references=refs,
         )
         return shot.index, path
 

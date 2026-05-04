@@ -35,6 +35,12 @@ cinema make "A lonely lighthouse keeper discovers a glowing creature in the surf
 
 Output lands in `projects/<slug>/clips/` as labeled MP4s plus an EDL CSV you can import into your editor.
 
+## Idea generator + character library
+
+* **Idea generator** — on the *New film* page, click **"Need ideas?"**, type a vague theme, and Gemini returns 10 polished loglines. Click one to autofill.
+* **Per-project Characters tab** — every project has a Characters tab listing the cast Gemini wrote (plus any you add manually). For each character you can generate a **locked reference portrait**, upload a real photo, edit the description, or save them to the cross-project library. When you next run the moodboard step, those portraits are passed to the keyframe model as references — the same actor will recur across every shot.
+* **Cross-project library** at `/library` — keep a personal cast of recurring characters with portraits, then "Import from library" into any project to instantly reuse them. Stored in `~/.cinemastudio/characters/`.
+
 ## Pipeline
 
 1. **Script** — Claude expands logline into a screenplay and shot list (JSON).

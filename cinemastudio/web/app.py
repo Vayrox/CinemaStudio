@@ -8,7 +8,7 @@ import time
 from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI, Form, HTTPException, Request
+from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import (
     FileResponse,
     HTMLResponse,
@@ -19,7 +19,8 @@ from fastapi.responses import (
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from cinemastudio import settings
+from cinemastudio import library, settings
+from cinemastudio.pipeline import character as char_mod
 from cinemastudio.pipeline import generate as gen_mod
 from cinemastudio.pipeline import moodboard as mb_mod
 from cinemastudio.pipeline import script as script_mod
@@ -47,6 +48,65 @@ def create_app() -> FastAPI:
     runner = JobRunner(PROJECTS_ROOT)
 
     app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
+
+    # ---------------------------------------------------------------- character helpers
+
+    def _safe_char_name(name: str) -> str:
+        s = re.sub(r"[^a-z0-9]+", "-", (name or "").lower()).strip("-")
+        return s[:48].rstrip("-") or "character"
+
+    def _project_char_path(project_dir: Path, name: str) -> Path:
+        return project_dir / "characters" / f"{_safe_char_name(name)}.jpg"
+
+    def _read_char_json(project_dir: Path) -> list[dict[str, Any]]:
+        path = project_dir / "characters.json"
+        if not path.exists():
+            return []
+        try:
+            data = json.loads(path.read_text())
+            if isinstance(data, list):
+                return data
+        except Exception:
+            pass
+        return []
+
+    def _write_char_json(project_dir: Path, chars: list[dict[str, Any]]) -> None:
+        (project_dir / "characters.json").write_text(json.dumps(chars, indent=2))
+
+    def _sync_project_characters(project_dir: Path) -> list[dict[str, Any]]:
+        """Merge characters from screenplay.json into characters.json without
+        overwriting user-edited descriptions. Returns the merged list."""
+        chars = _read_char_json(project_dir)
+        sp_path = project_dir / "screenplay.json"
+        if sp_path.exists():
+            try:
+                sp = json.loads(sp_path.read_text())
+                existing = {c["name"].strip().lower(): c for c in chars}
+                for c in sp.get("characters", []) or []:
+                    key = c["name"].strip().lower()
+                    if key not in existing:
+                        chars.append({
+                            "name": c["name"],
+                            "description": c.get("description", ""),
+                            "source": "script",
+                        })
+            except Exception:
+                pass
+        _write_char_json(project_dir, chars)
+        return chars
+
+    def _list_project_characters(slug: str) -> list[dict[str, Any]]:
+        project_dir = PROJECTS_ROOT / slug
+        if not project_dir.exists():
+            return []
+        chars = _sync_project_characters(project_dir)
+        out = []
+        for c in chars:
+            entry = dict(c)
+            entry["safe_name"] = _safe_char_name(c["name"])
+            entry["has_portrait"] = _project_char_path(project_dir, c["name"]).exists()
+            out.append(entry)
+        return out
 
     # ---------------------------------------------------------------- helpers
 
@@ -124,6 +184,7 @@ def create_app() -> FastAPI:
             "keyframes": keyframes,
             "moodboards": moodboards,
             "clips": clips,
+            "characters": _list_project_characters(slug),
             "has_edl": (project_dir / "edl.csv").exists(),
             "job": runner.status(slug),
         }
@@ -343,6 +404,271 @@ def create_app() -> FastAPI:
         ) as client:
             info = await client.me()
         return JSONResponse(info)
+
+    # ---------------------------------------------------------------- idea generator
+
+    @app.post("/api/loglines")
+    async def loglines(seed: str = Form(...), count: int = Form(10)) -> JSONResponse:
+        seed = seed.strip()
+        if not seed:
+            raise HTTPException(400, "seed is empty")
+        cfg = _config()
+        provider, key = settings.script_provider_key(cfg)
+        if not key:
+            label = "Google AI Studio" if provider == "google" else "Anthropic"
+            raise HTTPException(400, f"{label} API key missing. Visit /setup.")
+        loglines = await asyncio.to_thread(
+            script_mod.generate_loglines,
+            provider=provider,
+            api_key=key,
+            seed=seed,
+            count=max(1, min(20, int(count))),
+        )
+        return JSONResponse({"loglines": loglines})
+
+    # ---------------------------------------------------------------- project characters
+
+    async def _generate_project_portrait(
+        project_dir: Path, character: dict[str, Any], cfg
+    ) -> Path:
+        out = _project_char_path(project_dir, character["name"])
+        async with AIAutoClient(
+            api_key=cfg.AI_AUTO_API_KEY,
+            video_concurrency=cfg.VIDEO_CONCURRENCY,
+            image_concurrency=cfg.IMAGE_CONCURRENCY,
+        ) as client:
+            await char_mod.generate_portrait(
+                client,
+                name=character["name"],
+                description=character.get("description", ""),
+                image_model=cfg.CHARACTER_IMAGE_MODEL,
+                out_path=out,
+            )
+        return out
+
+    @app.get("/api/projects/{slug}/characters")
+    async def list_project_characters(slug: str) -> JSONResponse:
+        if not (PROJECTS_ROOT / slug).exists():
+            raise HTTPException(404, "project not found")
+        return JSONResponse({"characters": _list_project_characters(slug)})
+
+    @app.post("/api/projects/{slug}/characters")
+    async def add_project_character(
+        slug: str,
+        name: str = Form(...),
+        description: str = Form(""),
+    ) -> JSONResponse:
+        project_dir = PROJECTS_ROOT / slug
+        if not project_dir.exists():
+            raise HTTPException(404, "project not found")
+        name = name.strip()
+        if not name:
+            raise HTTPException(400, "name required")
+        chars = _read_char_json(project_dir)
+        if any(c["name"].strip().lower() == name.lower() for c in chars):
+            raise HTTPException(409, "character already exists")
+        chars.append({"name": name, "description": description.strip(), "source": "manual"})
+        _write_char_json(project_dir, chars)
+        return JSONResponse({"ok": True, "characters": _list_project_characters(slug)})
+
+    @app.post("/api/projects/{slug}/characters/{char_slug}/update")
+    async def update_project_character(
+        slug: str,
+        char_slug: str,
+        name: str = Form(""),
+        description: str = Form(""),
+    ) -> JSONResponse:
+        project_dir = PROJECTS_ROOT / slug
+        chars = _read_char_json(project_dir)
+        match = next((c for c in chars if _safe_char_name(c["name"]) == char_slug), None)
+        if not match:
+            raise HTTPException(404, "character not found")
+        old_name = match["name"]
+        if name.strip():
+            match["name"] = name.strip()
+        if description is not None:
+            match["description"] = description.strip()
+        _write_char_json(project_dir, chars)
+        # If name changed, rename the portrait file too.
+        if name.strip() and _safe_char_name(name) != _safe_char_name(old_name):
+            old_path = _project_char_path(project_dir, old_name)
+            new_path = _project_char_path(project_dir, name)
+            if old_path.exists():
+                old_path.rename(new_path)
+        return JSONResponse({"ok": True, "characters": _list_project_characters(slug)})
+
+    @app.delete("/api/projects/{slug}/characters/{char_slug}")
+    async def delete_project_character(slug: str, char_slug: str) -> JSONResponse:
+        project_dir = PROJECTS_ROOT / slug
+        chars = _read_char_json(project_dir)
+        before = len(chars)
+        chars = [c for c in chars if _safe_char_name(c["name"]) != char_slug]
+        if len(chars) == before:
+            raise HTTPException(404, "character not found")
+        _write_char_json(project_dir, chars)
+        portrait = project_dir / "characters" / f"{char_slug}.jpg"
+        if portrait.exists():
+            portrait.unlink()
+        return JSONResponse({"ok": True, "characters": _list_project_characters(slug)})
+
+    @app.post("/api/projects/{slug}/characters/{char_slug}/portrait")
+    async def regen_project_portrait(slug: str, char_slug: str) -> JSONResponse:
+        project_dir = PROJECTS_ROOT / slug
+        chars = _read_char_json(project_dir)
+        match = next((c for c in chars if _safe_char_name(c["name"]) == char_slug), None)
+        if not match:
+            raise HTTPException(404, "character not found")
+        cfg = _config()
+        if not cfg.AI_AUTO_API_KEY:
+            raise HTTPException(400, "ai-auto.io key not set")
+        await _generate_project_portrait(project_dir, match, cfg)
+        return JSONResponse({"ok": True, "characters": _list_project_characters(slug)})
+
+    @app.post("/api/projects/{slug}/characters/{char_slug}/upload")
+    async def upload_project_portrait(
+        slug: str,
+        char_slug: str,
+        file: UploadFile = File(...),
+    ) -> JSONResponse:
+        project_dir = PROJECTS_ROOT / slug
+        chars = _read_char_json(project_dir)
+        match = next((c for c in chars if _safe_char_name(c["name"]) == char_slug), None)
+        if not match:
+            raise HTTPException(404, "character not found")
+        out = _project_char_path(project_dir, match["name"])
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_bytes(await file.read())
+        return JSONResponse({"ok": True, "characters": _list_project_characters(slug)})
+
+    @app.post("/api/projects/{slug}/characters/import/{lib_slug}")
+    async def import_library_character(slug: str, lib_slug: str) -> JSONResponse:
+        project_dir = PROJECTS_ROOT / slug
+        if not project_dir.exists():
+            raise HTTPException(404, "project not found")
+        lib_char = library.get_character(lib_slug)
+        if not lib_char:
+            raise HTTPException(404, "library character not found")
+        chars = _read_char_json(project_dir)
+        if not any(c["name"].strip().lower() == lib_char["name"].strip().lower() for c in chars):
+            chars.append({
+                "name": lib_char["name"],
+                "description": lib_char.get("description", ""),
+                "source": "imported",
+            })
+            _write_char_json(project_dir, chars)
+        # Copy portrait into project.
+        src = library.portrait_path(lib_slug)
+        if src.exists():
+            dest = _project_char_path(project_dir, lib_char["name"])
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            dest.write_bytes(src.read_bytes())
+        return JSONResponse({"ok": True, "characters": _list_project_characters(slug)})
+
+    @app.get("/files/{slug}/characters/{filename}")
+    async def serve_project_character(slug: str, filename: str) -> FileResponse:
+        target = (PROJECTS_ROOT / slug / "characters" / filename).resolve()
+        root = (PROJECTS_ROOT / slug / "characters").resolve()
+        try:
+            target.relative_to(root)
+        except ValueError as exc:
+            raise HTTPException(400, "bad path") from exc
+        if not target.exists():
+            raise HTTPException(404, "not found")
+        return FileResponse(str(target))
+
+    # ---------------------------------------------------------------- library
+
+    @app.get("/library", response_class=HTMLResponse)
+    async def library_page(request: Request) -> HTMLResponse:
+        return templates.TemplateResponse(
+            request,
+            "library.html",
+            {
+                "characters": library.list_library(),
+                "keys": _keys_status(),
+                "config": _config(),
+            },
+        )
+
+    @app.get("/api/library")
+    async def api_library_list() -> JSONResponse:
+        return JSONResponse({"characters": library.list_library()})
+
+    @app.post("/api/library")
+    async def api_library_add(
+        name: str = Form(...),
+        description: str = Form(""),
+    ) -> JSONResponse:
+        name = name.strip()
+        if not name:
+            raise HTTPException(400, "name required")
+        slug = library.unique_slug(name)
+        library.save_character(slug, name, description.strip(), source="manual")
+        return JSONResponse({"ok": True, "slug": slug, "characters": library.list_library()})
+
+    @app.post("/api/library/{lib_slug}/update")
+    async def api_library_update(
+        lib_slug: str,
+        name: str = Form(""),
+        description: str = Form(""),
+    ) -> JSONResponse:
+        try:
+            library.update_character(
+                lib_slug,
+                name=name.strip() or None,
+                description=description.strip(),
+            )
+        except FileNotFoundError as exc:
+            raise HTTPException(404, "not found") from exc
+        return JSONResponse({"ok": True, "characters": library.list_library()})
+
+    @app.delete("/api/library/{lib_slug}")
+    async def api_library_delete(lib_slug: str) -> JSONResponse:
+        library.delete_character(lib_slug)
+        return JSONResponse({"ok": True, "characters": library.list_library()})
+
+    @app.post("/api/library/{lib_slug}/portrait")
+    async def api_library_regen(lib_slug: str) -> JSONResponse:
+        char = library.get_character(lib_slug)
+        if not char:
+            raise HTTPException(404, "not found")
+        cfg = _config()
+        if not cfg.AI_AUTO_API_KEY:
+            raise HTTPException(400, "ai-auto.io key not set")
+        out = library.portrait_path(lib_slug)
+        out.parent.mkdir(parents=True, exist_ok=True)
+        async with AIAutoClient(
+            api_key=cfg.AI_AUTO_API_KEY,
+            video_concurrency=cfg.VIDEO_CONCURRENCY,
+            image_concurrency=cfg.IMAGE_CONCURRENCY,
+        ) as client:
+            await char_mod.generate_portrait(
+                client,
+                name=char["name"],
+                description=char.get("description", ""),
+                image_model=cfg.CHARACTER_IMAGE_MODEL,
+                out_path=out,
+            )
+        # Mark as generated source.
+        library.update_character(lib_slug)  # touches meta only
+        return JSONResponse({"ok": True, "characters": library.list_library()})
+
+    @app.post("/api/library/{lib_slug}/upload")
+    async def api_library_upload(
+        lib_slug: str,
+        file: UploadFile = File(...),
+    ) -> JSONResponse:
+        if not library.get_character(lib_slug):
+            raise HTTPException(404, "not found")
+        library.write_portrait_bytes(lib_slug, await file.read())
+        return JSONResponse({"ok": True, "characters": library.list_library()})
+
+    @app.get("/library-files/{lib_slug}/portrait")
+    async def serve_library_portrait(lib_slug: str) -> FileResponse:
+        p = library.portrait_path(lib_slug)
+        if not p.exists():
+            raise HTTPException(404, "no portrait")
+        return FileResponse(str(p))
 
     # ---------------------------------------------------------------- runners
 

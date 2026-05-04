@@ -108,6 +108,57 @@ def generate_screenplay(
     return Screenplay.model_validate(data)
 
 
+LOGLINE_SYSTEM = (
+    "You are a film story generator. Given a seed idea, return a JSON array "
+    "of vivid one-sentence loglines. Each logline MUST include:\n"
+    "  - a protagonist with one telling detail (age, role, distinguishing trait)\n"
+    "  - a clear central conflict or dramatic situation\n"
+    "  - an evocative setting or atmosphere\n"
+    "Keep each logline under 30 words. Return ONLY a JSON array of strings, no prose."
+)
+
+
+def generate_loglines(
+    *,
+    provider: str,
+    api_key: str,
+    seed: str,
+    count: int = 10,
+) -> list[str]:
+    """Expand a seed idea into `count` polished loglines."""
+    user = (
+        f"Seed idea: {seed}\n"
+        f"Generate exactly {count} distinct loglines. Vary tone, scale, and genre.\n"
+        "Return a JSON array of strings only."
+    )
+    provider = (provider or "google").lower()
+    if provider == "anthropic":
+        raw = _generate_anthropic(api_key, LOGLINE_SYSTEM, user)
+    elif provider == "google":
+        raw = _generate_google(api_key, LOGLINE_SYSTEM, user)
+    else:
+        raise ValueError(f"Unknown script provider: {provider!r}")
+
+    cleaned = _strip_json_fences(raw)
+    # Tolerate either a bare array or {"loglines": [...]}.
+    try:
+        data = json.loads(cleaned)
+    except json.JSONDecodeError:
+        # Last-resort: pick the first JSON array we can find.
+        m = re.search(r"\[(?:.|\s)*\]", cleaned)
+        if not m:
+            raise
+        data = json.loads(m.group(0))
+    if isinstance(data, dict):
+        for v in data.values():
+            if isinstance(v, list):
+                data = v
+                break
+    if not isinstance(data, list):
+        raise ValueError(f"Expected a JSON array, got: {type(data).__name__}")
+    return [str(x).strip() for x in data if str(x).strip()][:count]
+
+
 def save_screenplay(screenplay: Screenplay, project_dir: Path) -> Path:
     project_dir.mkdir(parents=True, exist_ok=True)
     path = project_dir / "screenplay.json"
