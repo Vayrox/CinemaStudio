@@ -436,7 +436,7 @@ def create_app() -> FastAPI:
 
     @app.get("/files/{slug}/{kind}/{filename}")
     async def serve_file(slug: str, kind: str, filename: str) -> FileResponse:
-        if kind not in {"keyframes", "moodboards", "clips"}:
+        if kind not in {"keyframes", "moodboards", "clips", "characters"}:
             raise HTTPException(404, "unknown asset kind")
         target = (PROJECTS_ROOT / slug / kind / filename).resolve()
         root = (PROJECTS_ROOT / slug / kind).resolve()
@@ -684,18 +684,6 @@ def create_app() -> FastAPI:
                 dest.write_bytes(src.read_bytes())
 
         return JSONResponse({"ok": True, "characters": _list_project_characters(slug)})
-
-    @app.get("/files/{slug}/characters/{filename}")
-    async def serve_project_character(slug: str, filename: str) -> FileResponse:
-        target = (PROJECTS_ROOT / slug / "characters" / filename).resolve()
-        root = (PROJECTS_ROOT / slug / "characters").resolve()
-        try:
-            target.relative_to(root)
-        except ValueError as exc:
-            raise HTTPException(400, "bad path") from exc
-        if not target.exists():
-            raise HTTPException(404, "not found")
-        return FileResponse(str(target))
 
     # ---------------------------------------------------------------- library
 
