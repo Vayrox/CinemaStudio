@@ -200,10 +200,15 @@ class AIAutoClient:
             "resolution": resolution,
         }
         if reference_images:
-            # ai-auto.io image models that support refs (e.g. nano_banana_pro,
-            # gtv_seedream_4_5) read up to 2 images from this field and lock
-            # identity / wardrobe / setting from them.
-            body["reference_images"] = list(reference_images)[:2]
+            refs = list(reference_images)[:2]
+            # ai-auto.io's unified /generate endpoint accepts the same
+            # reference fields used for video i2v "ingredients" mode for image
+            # models that support references (nano_banana_pro,
+            # gtv_seedream_4_5, gtv_flux_2_pro). Sending both forms keeps us
+            # compatible with whichever the model expects.
+            body["reference_images"] = refs
+            body["i2v_reference_images"] = refs
+            body["i2v_mode"] = "ingredients"
         async with self._image_sem:
             gen_id = await self._start_generation(body)
             return await self._poll(gen_id)

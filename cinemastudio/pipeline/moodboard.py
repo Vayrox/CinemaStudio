@@ -16,6 +16,8 @@ from __future__ import annotations
 import asyncio
 from pathlib import Path
 
+import re
+
 from PIL import Image
 from rich.console import Console
 
@@ -25,24 +27,65 @@ from cinemastudio.providers.ai_auto import AIAutoClient, file_to_data_url
 console = Console()
 
 
+def _safe_name(name: str) -> str:
+    s = re.sub(r"[^a-z0-9]+", "-", (name or "").lower()).strip("-")
+    return s[:48].rstrip("-") or "character"
+
+
 def _project_character_path(project_dir: Path, name: str) -> Path:
     """Resolve the per-project portrait path for a character name."""
-    import re
-
-    safe = re.sub(r"[^a-z0-9]+", "-", (name or "").lower()).strip("-") or "character"
-    return project_dir / "characters" / f"{safe}.jpg"
+    return project_dir / "characters" / f"{_safe_name(name)}.jpg"
 
 
-def _references_for_shot(project_dir: Path, shot: Shot) -> list[str]:
-    """Return up to 2 character portrait data URLs for the given shot."""
+def _references_for_shot(
+    project_dir: Path,
+    shot: Shot,
+    screenplay: Screenplay | None = None,
+) -> tuple[list[str], list[str]]:
+    """Return (data URLs, names) for up to 2 character sheets matching the shot.
+
+    Tries `shot.character_names` first; if that's empty or yields no portraits,
+    scans the shot's keyframe_prompt + description for any known character name
+    from the screenplay. This is the fallback for screenplays where Gemini
+    didn't populate character_names reliably.
+    """
+    seen: set[str] = set()
     refs: list[str] = []
+    matched: list[str] = []
+
+    def _add(name: str) -> bool:
+        key = name.strip().lower()
+        if not key or key in seen:
+            return False
+        path = _project_character_path(project_dir, name)
+        if not path.exists():
+            return False
+        refs.append(file_to_data_url(path))
+        matched.append(name)
+        seen.add(key)
+        return len(refs) >= 2
+
+    # Primary: explicit character_names on the shot.
     for name in shot.character_names or []:
-        p = _project_character_path(project_dir, name)
-        if p.exists():
-            refs.append(file_to_data_url(p))
-        if len(refs) == 2:
-            break
-    return refs
+        if _add(name):
+            return refs, matched
+
+    # Fallback: scan keyframe_prompt + description for any known character name.
+    if screenplay is not None and len(refs) < 2:
+        haystack = " ".join(filter(None, [shot.keyframe_prompt, shot.description]))
+        # Sort longest first so "Captain Hawk" matches before "Hawk".
+        candidates = sorted(
+            (c.name for c in screenplay.characters),
+            key=lambda n: -len(n),
+        )
+        for cand in candidates:
+            if cand.strip().lower() in seen:
+                continue
+            if re.search(rf"\b{re.escape(cand)}\b", haystack, flags=re.IGNORECASE):
+                if _add(cand):
+                    return refs, matched
+
+    return refs, matched
 
 
 def _moodboard_prompt(screenplay: Screenplay, scene_idx: int, shots: list[Shot]) -> str:
@@ -160,14 +203,17 @@ async def build_moodboards(
 
     async def _kf(shot: Shot) -> tuple[int, Path]:
         out = keyframes_dir / f"shot_{shot.index:03d}.jpg"
-        refs = _references_for_shot(project_dir, shot)
+        refs, matched = _references_for_shot(project_dir, shot, screenplay)
         if refs:
             console.log(
-                f"[green]Keyframe[/green] shot {shot.index} (with "
-                f"{len(refs)} character ref{'s' if len(refs) != 1 else ''})"
+                f"[green]Keyframe[/green] shot {shot.index} "
+                f"(refs: {', '.join(matched)})"
             )
         else:
-            console.log(f"[green]Keyframe[/green] shot {shot.index}")
+            console.log(
+                f"[green]Keyframe[/green] shot {shot.index} "
+                f"[yellow](no character refs — text only)[/yellow]"
+            )
         path = await _generate_keyframe(
             client,
             shot=shot,
