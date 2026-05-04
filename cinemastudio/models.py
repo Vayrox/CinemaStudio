@@ -21,6 +21,10 @@ class Shot(BaseModel):
     keyframe_prompt: str = Field(
         ..., description="Detailed photorealistic prompt for the still keyframe image."
     )
+    audio_prompt: str = Field(
+        default="",
+        description="Diegetic sounds, ambience, optional dialogue/music cues for Seedance native audio.",
+    )
     duration_seconds: int = 15
     character_names: list[str] = Field(default_factory=list)
 

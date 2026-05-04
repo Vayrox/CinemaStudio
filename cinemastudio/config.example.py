@@ -26,6 +26,13 @@ MOODBOARD_IMAGE_MODEL = "nano_banana_pro"
 CHARACTER_IMAGE_MODEL = "nano_banana_pro"
 KEYFRAME_IMAGE_MODEL = "nano_banana_pro"
 
+# Seedance 2.0 emits native audio when the prompt describes sound.
+ENABLE_NATIVE_AUDIO = True
+
 # Concurrency for VIP+ plan
 VIDEO_CONCURRENCY = 3
 IMAGE_CONCURRENCY = 4
+
+# Web UI
+WEB_HOST = "127.0.0.1"
+WEB_PORT = 7777

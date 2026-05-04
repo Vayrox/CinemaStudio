@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Settings</h1>
+
+{% if request.query_params.get("saved") %}
+<div class="banner ok">Saved.</div>
+{% endif %}
+
+<form method="post" action="/settings" class="stacked card">
+  <label>ai-auto.io API key
+    <input type="password" name="ai_auto_key"
+           placeholder="{{ 'set' if ai_auto_set else 'paste here' }}"
+           autocomplete="off">
+    <span class="muted small">{{ 'Currently set.' if ai_auto_set else 'Required.' }} Leave blank to keep existing.</span>
+  </label>
+
+  <label>Anthropic API key
+    <input type="password" name="anthropic_key"
+           placeholder="{{ 'set' if anthropic_set else 'paste here' }}"
+           autocomplete="off">
+    <span class="muted small">{{ 'Currently set.' if anthropic_set else 'Required for script generation.' }} Leave blank to keep existing.</span>
+  </label>
+
+  <button type="submit">Save</button>
+</form>
+
+<div class="card">
+  <h3>Models in use</h3>
+  <ul class="muted">
+    <li>Video: <code>{{ cfg.VIDEO_MODEL }}</code> · resolution {{ cfg.DEFAULT_RESOLUTION }} · audio {{ 'on' if cfg.ENABLE_NATIVE_AUDIO else 'off' }}</li>
+    <li>Moodboard image: <code>{{ cfg.MOODBOARD_IMAGE_MODEL }}</code></li>
+    <li>Character image: <code>{{ cfg.CHARACTER_IMAGE_MODEL }}</code></li>
+    <li>Keyframe image: <code>{{ cfg.KEYFRAME_IMAGE_MODEL }}</code> · resolution {{ cfg.DEFAULT_IMAGE_RESOLUTION }}</li>
+  </ul>
+  <p class="small muted">Edit <code>cinemastudio/config.py</code> to swap models. Common alternatives: <code>gtv_seedream_4_5</code>, <code>gtv_flux_2_pro</code>, <code>gtv_imagen_4_ultra</code>, <code>gpt-image-2</code>.</p>
+</div>
+
+<div class="card warn">
+  Your keys are saved to <code>cinemastudio/config.py</code>, which is gitignored.
+  Never paste them into screenshots or commits. Rotate immediately if leaked.
+</div>
+
+{% endblock %}

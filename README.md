@@ -2,17 +2,26 @@
 
 AI short-film pipeline. Logline → screenplay → shot list → moodboards → Seedance 2.0 clips, delivered as labeled MP4s ready for manual editing in DaVinci/Premiere/Final Cut.
 
-## Quickstart
+## Quickstart (web UI)
 
 ```bash
 pip install -e .
-cinema setup            # paste your ai-auto.io API key (saved locally, gitignored)
-cinema setup-anthropic  # paste your Anthropic key for script generation
+cinema serve
+```
+
+This launches the web UI at `http://127.0.0.1:7777`. On first visit it asks you to paste your **ai-auto.io** and **Anthropic** keys (saved locally to `cinemastudio/config.py`, which is gitignored). From there you create projects, watch live progress logs, preview keyframes/clips inline, and regenerate any single shot with one click.
+
+## CLI alternative
+
+```bash
+cinema setup
 cinema make "A lonely lighthouse keeper discovers a glowing creature in the surf at dawn." \
     --ratio 9:16 --minutes 1 --slug lighthouse
 ```
 
 Output lands in `projects/<slug>/clips/` as labeled MP4s plus an EDL CSV you can import into your editor.
+
+Native audio (ambient, dialogue, music cues) is emitted by Seedance 2.0 directly from the `audio_prompt` baked into each shot. Toggle via `ENABLE_NATIVE_AUDIO` in `cinemastudio/config.py`.
 
 ## Pipeline
 
@@ -31,11 +40,13 @@ VIP+ plan: 3 parallel Seedance jobs, 4 parallel image jobs. The tool queues the 
 
 | Command | What it does |
 |---|---|
-| `cinema setup` | First-run prompt for ai-auto.io API key |
+| `cinema serve` | Start the web UI (recommended) |
+| `cinema setup` | First-run prompt for API keys |
 | `cinema script "<logline>" --slug NAME` | Generate screenplay + shot list only |
 | `cinema moodboard --slug NAME` | Generate moodboards from existing shot list |
 | `cinema generate --slug NAME` | Animate shots into clips |
 | `cinema make "<logline>" --slug NAME` | Run the full pipeline |
+| `cinema quota` | Check ai-auto.io plan + remaining quota |
 
 ## Caveats
 

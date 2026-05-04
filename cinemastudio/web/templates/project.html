@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+{% block title %}{{ screenplay.title if screenplay else slug }} — CinemaStudio{% endblock %}
+{% block content %}
+
+<header class="project-header">
+  <div>
+    <h1>{{ screenplay.title if screenplay else slug }}</h1>
+    <p class="muted">{{ screenplay.logline if screenplay else "Generating screenplay…" }}</p>
+    {% if screenplay %}
+    <p class="small muted">
+      {{ screenplay.aspect_ratio }} · {{ screenplay.target_minutes }} min ·
+      {{ screenplay.shots|length }} shots ·
+      {{ screenplay.scenes|length }} scenes ·
+      style: <em>{{ screenplay.style }}</em>
+    </p>
+    {% endif %}
+  </div>
+  <div class="actions">
+    {% if screenplay %}
+    <button data-action="moodboard">Generate moodboards + keyframes</button>
+    <button data-action="generate">Animate all clips</button>
+    {% endif %}
+  </div>
+</header>
+
+<section class="logwrap">
+  <h3>Activity</h3>
+  <pre id="log"></pre>
+</section>
+
+{% if screenplay %}
+<section>
+  <h2>Shots</h2>
+  <div class="shots">
+    {% for sv in shots_view %}
+    <article class="shot" data-shot="{{ sv.shot.index }}">
+      <header>
+        <span class="badge">#{{ "%03d" % sv.shot.index }}</span>
+        <span class="muted small">scene {{ sv.shot.scene }} · {{ sv.shot.duration_seconds }}s</span>
+      </header>
+      <p class="desc">{{ sv.shot.description }}</p>
+      <div class="media">
+        <div class="kf">
+          {% if sv.keyframe_url %}
+            <img src="{{ sv.keyframe_url }}" alt="keyframe">
+          {% else %}
+            <div class="placeholder">no keyframe yet</div>
+          {% endif %}
+          <button data-action="regen-keyframe" data-shot="{{ sv.shot.index }}">Regenerate keyframe</button>
+        </div>
+        <div class="clip">
+          {% if sv.clip_url %}
+            <video src="{{ sv.clip_url }}" controls preload="metadata"></video>
+          {% else %}
+            <div class="placeholder">no clip yet</div>
+          {% endif %}
+          <button data-action="regen-clip" data-shot="{{ sv.shot.index }}"
+                  {% if not sv.keyframe_url %}disabled title="generate keyframe first"{% endif %}>
+            {% if sv.clip_url %}Regenerate clip{% else %}Animate clip{% endif %}
+          </button>
+        </div>
+      </div>
+      <details>
+        <summary>prompts</summary>
+        <p><strong>Keyframe:</strong> {{ sv.shot.keyframe_prompt }}</p>
+        <p><strong>Motion:</strong> {{ sv.shot.motion_prompt }}</p>
+        {% if sv.shot.audio_prompt %}<p><strong>Audio:</strong> {{ sv.shot.audio_prompt }}</p>{% endif %}
+      </details>
+    </article>
+    {% endfor %}
+  </div>
+</section>
+{% else %}
+<p class="muted">Screenplay generation in progress. Refresh in a few seconds.</p>
+{% endif %}
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+  window.PROJECT_SLUG = {{ slug | tojson }};
+  window.LIVE_JOBS = {{ jobs | map(attribute='id') | list | tojson }};
+</script>
+{% endblock %}

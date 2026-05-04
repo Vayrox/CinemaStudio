@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block content %}
+
+{% if not keys_set %}
+<div class="banner">
+  <strong>Heads up:</strong> your API keys aren't set yet.
+  <a href="/settings">Add them in Settings →</a>
+</div>
+{% endif %}
+
+<section class="grid-2">
+  <div>
+    <h1>New film</h1>
+    <form method="post" action="/projects/new" class="stacked">
+      <label>Logline
+        <textarea name="logline" rows="3" required placeholder="A lonely lighthouse keeper finds a glowing creature in the surf at dawn."></textarea>
+      </label>
+      <label>Slug (optional)
+        <input name="slug" placeholder="lighthouse">
+      </label>
+      <div class="row">
+        <label>Aspect
+          <select name="aspect_ratio">
+            <option value="9:16">9:16 (vertical)</option>
+            <option value="16:9" selected>16:9 (cinematic)</option>
+            <option value="1:1">1:1</option>
+          </select>
+        </label>
+        <label>Length (min)
+          <input type="number" step="0.5" min="0.5" max="10" value="1" name="target_minutes">
+        </label>
+        <label>Shot seconds
+          <select name="shot_seconds">
+            <option>5</option>
+            <option>10</option>
+            <option selected>15</option>
+          </select>
+        </label>
+      </div>
+      <button type="submit">Create + write screenplay</button>
+    </form>
+  </div>
+  <div>
+    <h1>Projects</h1>
+    {% if projects %}
+    <ul class="project-list">
+      {% for p in projects %}
+      <li>
+        <a href="/projects/{{ p.slug }}">
+          <strong>{{ p.title }}</strong>
+          <span class="muted">{{ p.slug }}</span>
+        </a>
+        <div class="muted small">
+          {{ p.shot_count }} shots · {{ p.keyframes }} keyframes · {{ p.clips }} clips
+        </div>
+        <div class="muted small">{{ p.logline }}</div>
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p class="muted">No projects yet. Start one on the left.</p>
+    {% endif %}
+  </div>
+</section>
+
+{% endblock %}

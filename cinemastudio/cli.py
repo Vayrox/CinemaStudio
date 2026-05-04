@@ -147,6 +147,7 @@ def generate(
 async def _run_generate(
     sp, keyframe_paths, project_dir, aspect_ratio, resolution, shot_seconds, cfg
 ) -> None:
+    enable_audio = getattr(cfg, "ENABLE_NATIVE_AUDIO", True)
     async with AIAutoClient(
         api_key=cfg.AI_AUTO_API_KEY,
         video_concurrency=cfg.VIDEO_CONCURRENCY,
@@ -161,6 +162,7 @@ async def _run_generate(
             resolution=resolution,
             seconds=shot_seconds,
             video_model=cfg.VIDEO_MODEL,
+            enable_audio=enable_audio,
         )
     edl = gen_mod.write_edl(sp, project_dir, shot_seconds)
     console.print(f"[green]✓ Clips ready in projects/{project_dir.name}/clips/[/green]")
@@ -210,6 +212,35 @@ def make(
     }
     asyncio.run(
         _run_generate(sp, keyframe_paths, project_dir, aspect_ratio, resolution, shot_seconds, cfg)
+    )
+
+
+@cli.command()
+@click.option("--host", default=None)
+@click.option("--port", type=int, default=None)
+@click.option("--reload", is_flag=True, help="Auto-reload on code changes (dev).")
+def serve(host: str | None, port: int | None, reload: bool) -> None:
+    """Start the CinemaStudio web UI."""
+    import webbrowser
+
+    import uvicorn
+
+    cfg = settings.get()
+    host = host or getattr(cfg, "WEB_HOST", "127.0.0.1")
+    port = port or getattr(cfg, "WEB_PORT", 7777)
+    url = f"http://{host}:{port}"
+    console.print(Panel.fit(f"CinemaStudio web UI\n[bold]{url}[/bold]"))
+    if not reload:
+        try:
+            webbrowser.open(url)
+        except Exception:
+            pass
+    uvicorn.run(
+        "cinemastudio.web.app:app",
+        host=host,
+        port=port,
+        reload=reload,
+        log_level="info",
     )
 
 

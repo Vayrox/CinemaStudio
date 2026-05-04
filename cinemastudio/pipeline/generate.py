@@ -24,6 +24,14 @@ def _clip_path(project_dir: Path, shot: Shot) -> Path:
     return project_dir / "clips" / f"shot_{shot.index:03d}_scene{shot.scene:02d}_{desc}.mp4"
 
 
+def _build_video_prompt(shot: Shot, screenplay: Screenplay, enable_audio: bool) -> str:
+    parts = [shot.motion_prompt.strip()]
+    if enable_audio and shot.audio_prompt:
+        parts.append(f"Audio: {shot.audio_prompt.strip()}")
+    parts.append(f"Style: {screenplay.style.strip()}")
+    return " ".join(p for p in parts if p)
+
+
 async def _animate_one(
     client: AIAutoClient,
     *,
@@ -35,17 +43,21 @@ async def _animate_one(
     resolution: str,
     seconds: int,
     video_model: str,
+    enable_audio: bool = True,
+    overwrite: bool = False,
 ) -> Path:
     out = _clip_path(project_dir, shot)
-    if out.exists() and out.stat().st_size > 0:
+    if out.exists() and out.stat().st_size > 0 and not overwrite:
         console.log(f"[dim]Skip[/dim] shot {shot.index} (already rendered)")
         return out
 
-    style_suffix = f" Style: {screenplay.style}."
-    prompt = shot.motion_prompt + style_suffix
+    prompt = _build_video_prompt(shot, screenplay, enable_audio)
     frame_data_url = file_to_data_url(keyframe_path)
 
-    console.log(f"[magenta]Animate[/magenta] shot {shot.index} ({seconds}s, {aspect_ratio}, {resolution})")
+    console.log(
+        f"[magenta]Animate[/magenta] shot {shot.index} "
+        f"({seconds}s, {aspect_ratio}, {resolution}{', audio' if enable_audio else ''})"
+    )
     gen = await client.generate_video(
         prompt=prompt,
         model=video_model,
@@ -69,9 +81,14 @@ async def animate_all(
     resolution: str,
     seconds: int,
     video_model: str,
+    enable_audio: bool = True,
+    overwrite: bool = False,
+    only_shots: list[int] | None = None,
 ) -> list[Path]:
     tasks = []
     for shot in screenplay.shots:
+        if only_shots is not None and shot.index not in only_shots:
+            continue
         kf = keyframe_paths.get(shot.index)
         if kf is None:
             console.log(f"[yellow]Warn[/yellow] shot {shot.index}: no keyframe, skipping")
@@ -87,6 +104,8 @@ async def animate_all(
                 resolution=resolution,
                 seconds=seconds,
                 video_model=video_model,
+                enable_audio=enable_audio,
+                overwrite=overwrite,
             )
         )
     return await asyncio.gather(*tasks)
