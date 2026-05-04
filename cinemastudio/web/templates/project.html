@@ -8,7 +8,7 @@
     <h1>{{ sp.title if sp else data.slug }}</h1>
     <p class="muted">{{ sp.logline if sp else manifest.logline or "(no logline saved)" }}</p>
     {% if sp %}
-      <p class="muted small">Style: {{ sp.style }} · {{ sp.aspect_ratio }} · {{ sp.scenes|length }} scenes · {{ sp.shots|length }} shots</p>
+      <p class="muted small">Style: {{ sp.style }} · {{ sp.aspect_ratio }} · {{ sp.scenes|length }} scenes · {{ sp.shots|length }} shots → {{ sp.shots|length }} keyframes → {{ sp.shots|length }} clips</p>
     {% endif %}
   </div>
   <div class="run-controls">
@@ -120,7 +120,11 @@
 </section>
 
 <section class="tab-panel hidden" id="panel-moodboards">
-  <p class="muted small">Click any thumb to open. Don't like one? Hit <em>Regenerate</em>.</p>
+  <p class="muted small">
+    <strong>What these are:</strong> continuity reference sheets, one per scene with 2+ shots. They lock lighting, palette, and character look across that scene's keyframes.
+    <strong>What these are NOT:</strong> the keyframes Seedance animates. See the <em>Keyframes</em> tab for the per-shot stills that drive video generation.
+    Click any thumb to open. Don't like one? Hit <em>Regenerate</em>.
+  </p>
   <div class="gallery" id="moodboard-gallery">
     {% for name in data.moodboards %}
       <div class="thumb" data-moodboard="{{ name }}">
@@ -139,7 +143,9 @@
 </section>
 
 <section class="tab-panel hidden" id="panel-keyframes">
-  <p class="muted small">Click to open. Regenerate any keyframe you don't like — it will reuse the latest character sheets.</p>
+  <p class="muted small">
+    <strong>One keyframe per shot.</strong> These are the actual stills Seedance 2.0 animates into your clips — every shot in the screenplay produces one keyframe and one video. Regenerate any you don't like; it'll reuse the latest character sheets.
+  </p>
   <div class="gallery" id="keyframe-gallery">
     {% for name in data.keyframes %}
       <div class="thumb" data-keyframe="{{ name }}">

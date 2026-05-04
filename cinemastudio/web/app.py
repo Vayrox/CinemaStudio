@@ -433,8 +433,18 @@ def create_app() -> FastAPI:
     ) -> RedirectResponse:
         slug_clean = (slug.strip() or _slug_from_logline(logline)).lower()
         slug_clean = re.sub(r"[^a-z0-9-]+", "-", slug_clean).strip("-") or "untitled"
+
+        # Always allocate a fresh project directory. Reusing a slug used to
+        # silently mix old screenplay/characters/moodboards into the new film.
+        # Auto-suffix until we find a free slot.
+        candidate = slug_clean
+        n = 2
+        while (PROJECTS_ROOT / candidate).exists():
+            candidate = f"{slug_clean}-{n}"
+            n += 1
+        slug_clean = candidate
         project_dir = PROJECTS_ROOT / slug_clean
-        project_dir.mkdir(parents=True, exist_ok=True)
+        project_dir.mkdir(parents=True, exist_ok=False)
 
         # Write a manifest so we remember settings between runs.
         manifest = {
