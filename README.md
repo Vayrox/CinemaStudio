@@ -19,7 +19,7 @@ The browser UI walks you through:
 
 Pick a provider on the Settings page:
 
-* **Google AI Studio (default)** — grab a free key at <https://aistudio.google.com/>, paste it into Settings, done. Uses Gemini 2.5 Pro for screenplay generation.
+* **Google AI Studio (default)** — grab a free key at <https://aistudio.google.com/>, paste it into Settings, done. Uses **Gemini 2.5 Pro with extended thinking** (the highest-quality Gemini model, allowed to reason for as long as it needs before writing).
 * **Anthropic** — paste a Claude key from <https://console.anthropic.com/>. Uses Claude Sonnet 4.6.
 
 Either provider produces the same screenplay JSON; the rest of the pipeline (images + video) always goes through ai-auto.io.

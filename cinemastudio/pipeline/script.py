@@ -63,13 +63,21 @@ def _generate_google(api_key: str, system: str, user: str) -> str:
     from google.genai import types
 
     client = genai.Client(api_key=api_key)
+    # thinking_budget=-1 lets Gemini 2.5 Pro spend as long as it needs
+    # reasoning before writing the screenplay; include_thoughts=False keeps
+    # the chain-of-thought out of the returned JSON.
     resp = client.models.generate_content(
         model=GOOGLE_MODEL,
         contents=user,
         config=types.GenerateContentConfig(
             system_instruction=system,
             response_mime_type="application/json",
-            max_output_tokens=16000,
+            max_output_tokens=32000,
+            temperature=0.9,
+            thinking_config=types.ThinkingConfig(
+                thinking_budget=-1,
+                include_thoughts=False,
+            ),
         ),
     )
     return resp.text or ""
