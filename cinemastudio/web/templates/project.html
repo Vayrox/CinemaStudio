@@ -69,24 +69,24 @@
   <div class="actions inline">
     <button class="btn primary" id="char-new-btn">+ Add character</button>
     <button class="btn" id="char-import-btn">Import from library</button>
-    <span class="muted small">Portraits are used as locked references for every keyframe with that character.</span>
+    <span class="muted small">3-panel character sheets (front · back · close-up) are passed as locked references for every keyframe featuring that character.</span>
   </div>
   <div class="char-grid" id="char-grid">
     {% for ch in data.characters %}
       <div class="char-card" data-char-slug="{{ ch.safe_name }}">
-        <div class="char-portrait">
-          {% if ch.has_portrait %}
-            <img src="/files/{{ data.slug }}/characters/{{ ch.safe_name }}.jpg?t={{ data.job.started_at if data.job else 0 }}" alt="{{ ch.name }}" />
-          {% else %}
-            <div class="char-portrait-placeholder">no portrait</div>
-          {% endif %}
-        </div>
+        {% if ch.has_portrait %}
+          <a class="char-portrait" href="/files/{{ data.slug }}/characters/{{ ch.safe_name }}.jpg" target="_blank" title="Open full sheet">
+            <img src="/files/{{ data.slug }}/characters/{{ ch.safe_name }}.jpg?t={{ data.job.started_at if data.job else 0 }}" alt="{{ ch.name }} character sheet" />
+          </a>
+        {% else %}
+          <div class="char-portrait"><div class="char-portrait-placeholder">no sheet yet</div></div>
+        {% endif %}
         <div class="char-body">
           <h4>{{ ch.name }}</h4>
           <span class="badge {{ ch.source }}">{{ ch.source }}</span>
           <p class="muted small">{{ ch.description or '(no description)' }}</p>
           <div class="char-actions">
-            <button class="btn small" data-char-action="regen">Generate portrait</button>
+            <button class="btn small" data-char-action="regen">Generate sheet</button>
             <label class="btn small">
               Upload<input type="file" accept="image/*" data-char-action="upload" hidden />
             </label>

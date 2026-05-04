@@ -1,8 +1,15 @@
-"""Locked-reference character portrait generation.
+"""Locked-reference character sheet generation.
 
-A "portrait" here is a single neutral studio shot of a character that we
-later pass to the keyframe model as a reference image. The goal is purely
-identity locking — same face, hair, wardrobe across every shot.
+A "character sheet" here is a 3-panel turnaround on a pure white background:
+
+  ┌─────────────┬─────────────┬─────────────┐
+  │   FRONT     │    BACK     │  FACE CU    │
+  │  full body  │  full body  │  close-up   │
+  └─────────────┴─────────────┴─────────────┘
+
+Side-by-side equal panels, no gaps, no text. We later pass this sheet to
+the keyframe model as a reference image. Multiple views beat a single
+portrait at locking identity, hair, wardrobe across every shot.
 """
 from __future__ import annotations
 
@@ -11,13 +18,22 @@ from pathlib import Path
 from cinemastudio.providers.ai_auto import AIAutoClient
 
 
-PORTRAIT_PROMPT_TEMPLATE = (
-    "Studio reference portrait of {name}. {description}. "
-    "Centered medium close-up, neutral pose, looking slightly off-camera, "
-    "plain neutral grey backdrop, even soft front-lit lighting, no shadows, "
-    "no props, no overlays, no text, no logos. "
-    "Photorealistic, sharp focus, high detail on facial features, "
-    "natural skin texture. Single subject only."
+SHEET_PROMPT_TEMPLATE = (
+    "Character reference sheet of {name} on a pure white seamless studio "
+    "background (#FFFFFF, no shadows on the floor, no horizon line). "
+    "A single horizontal image divided into THREE equal vertical panels, "
+    "side by side, no gaps, no borders, no text, no labels, no logos:\n"
+    "  Panel 1 (left): FULL-BODY FRONT view, head to toe, neutral pose, "
+    "arms slightly away from body, looking straight at camera.\n"
+    "  Panel 2 (centre): FULL-BODY BACK view, same pose, head from behind, "
+    "showing hair, back of wardrobe.\n"
+    "  Panel 3 (right): HEAD-AND-SHOULDERS CLOSE-UP, frontal, neutral "
+    "expression, sharp focus on facial features.\n"
+    "All three panels show the EXACT SAME character with identical "
+    "wardrobe, hair, accessories, build, age, and skin tone. Even soft "
+    "front-lit studio lighting throughout. Photorealistic, sharp focus, "
+    "natural skin texture, ultra-detailed.\n\n"
+    "Character description: {description}"
 )
 
 
@@ -28,11 +44,11 @@ async def generate_portrait(
     description: str,
     image_model: str,
     out_path: Path,
-    aspect_ratio: str = "1:1",
-    resolution: str = "2k",
+    aspect_ratio: str = "16:9",
+    resolution: str = "4k",
 ) -> Path:
-    """Generate one reference portrait and save it to `out_path`."""
-    prompt = PORTRAIT_PROMPT_TEMPLATE.format(name=name, description=description)
+    """Generate one 3-panel character sheet and save it to `out_path`."""
+    prompt = SHEET_PROMPT_TEMPLATE.format(name=name, description=description)
     gen = await client.generate_image(
         prompt=prompt,
         image_model=image_model,

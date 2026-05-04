@@ -3,7 +3,7 @@
 {% block content %}
 <section class="hero">
   <h1>Character library</h1>
-  <p class="muted">Reusable characters with locked reference portraits. Imported into any film for cross-shot consistency.</p>
+  <p class="muted">Reusable characters with 3-panel reference sheets (front · back · face close-up on white). Imported into any film for cross-shot consistency.</p>
   <div class="actions">
     <button class="btn primary" id="lib-new-btn">+ New character</button>
   </div>
@@ -18,19 +18,19 @@
 <section class="char-grid" id="lib-grid">
   {% for ch in characters %}
     <div class="char-card" data-lib-slug="{{ ch.slug }}">
-      <div class="char-portrait">
-        {% if ch.has_portrait %}
-          <img src="/library-files/{{ ch.slug }}/portrait?t={{ ch.created_at }}" alt="{{ ch.name }}" />
-        {% else %}
-          <div class="char-portrait-placeholder">no portrait</div>
-        {% endif %}
-      </div>
+      {% if ch.has_portrait %}
+        <a class="char-portrait" href="/library-files/{{ ch.slug }}/portrait?t={{ ch.created_at }}" target="_blank" title="Open full sheet">
+          <img src="/library-files/{{ ch.slug }}/portrait?t={{ ch.created_at }}" alt="{{ ch.name }} character sheet" />
+        </a>
+      {% else %}
+        <div class="char-portrait"><div class="char-portrait-placeholder">no sheet yet</div></div>
+      {% endif %}
       <div class="char-body">
         <h4>{{ ch.name }}</h4>
         <span class="badge {{ ch.source }}">{{ ch.source }}</span>
         <p class="muted small">{{ ch.description or '(no description)' }}</p>
         <div class="char-actions">
-          <button class="btn small" data-lib-action="regen">Generate portrait</button>
+          <button class="btn small" data-lib-action="regen">Generate sheet</button>
           <label class="btn small">
             Upload<input type="file" accept="image/*" data-lib-action="upload" hidden />
           </label>
