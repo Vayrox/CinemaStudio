@@ -62,10 +62,17 @@ def _generate_google(api_key: str, system: str, user: str) -> str:
     from google import genai
     from google.genai import types
 
-    client = genai.Client(api_key=api_key)
-    # thinking_budget=-1 lets Gemini 2.5 Pro spend as long as it needs
-    # reasoning before writing the screenplay; include_thoughts=False keeps
-    # the chain-of-thought out of the returned JSON.
+    # 5-minute hard ceiling so a stuck call surfaces as an error instead of
+    # quietly waiting for an hour. Genai SDK takes the timeout in ms.
+    client = genai.Client(
+        api_key=api_key,
+        http_options=types.HttpOptions(timeout=300_000),
+    )
+    # thinking_budget=-1 (dynamic) lets the model think indefinitely on hard
+    # prompts; we've seen it spiral past 30 minutes. 8192 thinking tokens is
+    # plenty for outlining + verifying a screenplay (typical run uses < 4k)
+    # while still giving Pro real space to reason. include_thoughts=False
+    # keeps the chain-of-thought out of the returned JSON.
     resp = client.models.generate_content(
         model=GOOGLE_MODEL,
         contents=user,
@@ -75,7 +82,7 @@ def _generate_google(api_key: str, system: str, user: str) -> str:
             max_output_tokens=32000,
             temperature=0.9,
             thinking_config=types.ThinkingConfig(
-                thinking_budget=-1,
+                thinking_budget=8192,
                 include_thoughts=False,
             ),
         ),
