@@ -37,17 +37,38 @@ def _project_character_path(project_dir: Path, name: str) -> Path:
     return project_dir / "characters" / f"{_safe_name(name)}.jpg"
 
 
+def _scene_panel_for_shot(
+    project_dir: Path, screenplay: Screenplay, shot: Shot
+) -> Path | None:
+    """Return the moodboard panel for `shot` within its scene, or None."""
+    scene_shots = sorted(
+        [s for s in screenplay.shots if s.scene == shot.scene],
+        key=lambda s: s.index,
+    )
+    try:
+        position = scene_shots.index(shot) + 1
+    except ValueError:
+        return None
+    panel = (
+        project_dir / "moodboards" / f"scene_{shot.scene:02d}_panel_{position}.jpg"
+    )
+    return panel if panel.exists() else None
+
+
 def _references_for_shot(
     project_dir: Path,
     shot: Shot,
     screenplay: Screenplay | None = None,
 ) -> tuple[list[str], list[str]]:
-    """Return (data URLs, names) for up to 2 character sheets matching the shot.
+    """Return (data URLs, ref labels) for up to 2 references matching the shot.
 
-    Tries `shot.character_names` first; if that's empty or yields no portraits,
-    scans the shot's keyframe_prompt + description for any known character name
-    from the screenplay. This is the fallback for screenplays where Gemini
-    didn't populate character_names reliably.
+    Priority (capped at 2 by the API):
+    1. Character sheets named in shot.character_names
+    2. Character sheets matched by name in keyframe_prompt + description
+    3. The scene moodboard panel for this shot, if present
+
+    Identity locking matters most, so character sheets win the slots first; the
+    scene panel only fills a remaining slot.
     """
     seen: set[str] = set()
     refs: list[str] = []
@@ -85,26 +106,48 @@ def _references_for_shot(
                 if _add(cand):
                     return refs, matched
 
+    # Fill any remaining slot with the scene moodboard panel.
+    if screenplay is not None and len(refs) < 2:
+        panel = _scene_panel_for_shot(project_dir, screenplay, shot)
+        if panel is not None:
+            refs.append(file_to_data_url(panel))
+            matched.append(f"scene{shot.scene}-panel")
+
     return refs, matched
 
 
 def _moodboard_prompt(screenplay: Screenplay, scene_idx: int, shots: list[Shot]) -> str:
-    """Build a single prompt that asks the image model for a multi-panel sheet."""
+    """Build a prompt that asks the image model for a scene reference sheet."""
     scene = next(s for s in screenplay.scenes if s.index == scene_idx)
-    panels = []
-    for k, shot in enumerate(shots, 1):
-        panels.append(f"Panel {k}: {shot.keyframe_prompt}")
     panel_count = len(shots)
-    layout = (
-        f"A single horizontal contact sheet divided into {panel_count} equal vertical panels, "
-        "side by side, no gaps, no borders, no text overlays. "
-        "All panels share the same lighting style, color palette, and any recurring characters."
-    )
     style = screenplay.style
+    scene_ctx = (
+        f"Scene context: {scene.title}, {scene.location}, "
+        f"{scene.time_of_day}, mood: {scene.mood}.\n"
+        f"Scene summary: {scene.summary}"
+    )
+    if panel_count == 1:
+        # Single-shot scenes get a scene-establishing reference instead of
+        # a contact sheet, so the keyframe pipeline has something to anchor
+        # the look of the shot to.
+        return (
+            "A photorealistic scene establishing image. No contact-sheet "
+            "layout, no panels, no borders, no text, no logos.\n\n"
+            f"Global visual style: {style}\n\n"
+            f"{scene_ctx}\n\n"
+            f"Subject: {shots[0].keyframe_prompt}"
+        )
+    panels = [f"Panel {k}: {s.keyframe_prompt}" for k, s in enumerate(shots, 1)]
+    layout = (
+        f"A single horizontal contact sheet divided into {panel_count} equal "
+        "vertical panels, side by side, no gaps, no borders, no text overlays. "
+        "All panels share the same lighting style, color palette, and any "
+        "recurring characters."
+    )
     body = "\n".join(panels)
     return (
         f"{layout}\n\nGlobal visual style: {style}\n\n"
-        f"Scene context: {scene.title}, {scene.location}, {scene.time_of_day}, mood: {scene.mood}.\n\n"
+        f"{scene_ctx}\n\n"
         f"{body}"
     )
 
@@ -161,12 +204,18 @@ async def regenerate_scene_moodboard(
     """Regenerate just the moodboard sheet for a single scene."""
     moodboards_dir = project_dir / "moodboards"
     moodboards_dir.mkdir(parents=True, exist_ok=True)
-    shots = [s for s in screenplay.shots if s.scene == scene_idx]
+    shots = sorted(
+        [s for s in screenplay.shots if s.scene == scene_idx],
+        key=lambda s: s.index,
+    )
     if not shots:
         raise ValueError(f"No shots found in scene {scene_idx}")
     prompt = _moodboard_prompt(screenplay, scene_idx, shots)
     out = moodboards_dir / f"scene_{scene_idx:02d}_moodboard.jpg"
-    console.log(f"[cyan]Regenerating moodboard[/cyan] scene {scene_idx} ({len(shots)} panels)")
+    console.log(
+        f"[cyan]Regenerating moodboard[/cyan] scene {scene_idx} "
+        f"({len(shots)} panel{'s' if len(shots) != 1 else ''})"
+    )
     gen = await client.generate_image(
         prompt=prompt,
         image_model=moodboard_image_model,
@@ -174,8 +223,7 @@ async def regenerate_scene_moodboard(
         resolution=image_resolution,
     )
     await client.download_image(gen.id, out)
-    if len(shots) >= 2:
-        _slice_moodboard(out, len(shots), moodboards_dir, scene_idx)
+    _slice_moodboard(out, len(shots), moodboards_dir, scene_idx)
     return out
 
 
@@ -236,21 +284,25 @@ async def build_moodboards(
     moodboards_dir.mkdir(parents=True, exist_ok=True)
     keyframes_dir.mkdir(parents=True, exist_ok=True)
 
-    # Group shots by scene so we render one moodboard per scene.
+    # Group shots by scene so we render one reference sheet per scene.
     by_scene: dict[int, list[Shot]] = {}
     for shot in screenplay.shots:
         by_scene.setdefault(shot.scene, []).append(shot)
+    for scene_idx in by_scene:
+        by_scene[scene_idx].sort(key=lambda s: s.index)
 
-    # Moodboards: only worth doing when a scene has 2+ shots (continuity payoff).
+    # One moodboard per scene — multi-panel for scenes with 2+ shots,
+    # single-panel scene-establishing render for 1-shot scenes. Both feed
+    # into the keyframe step as scene-anchor references.
     moodboard_tasks = []
     for scene_idx, shots in by_scene.items():
-        if len(shots) < 2:
-            continue
         prompt = _moodboard_prompt(screenplay, scene_idx, shots)
         out = moodboards_dir / f"scene_{scene_idx:02d}_moodboard.jpg"
 
         async def _do(scene_idx=scene_idx, prompt=prompt, out=out, shots=shots):
-            console.log(f"[cyan]Moodboard[/cyan] scene {scene_idx} ({len(shots)} panels)")
+            console.log(
+                f"[cyan]Moodboard[/cyan] scene {scene_idx} ({len(shots)} panel{'s' if len(shots) != 1 else ''})"
+            )
             gen = await client.generate_image(
                 prompt=prompt,
                 image_model=moodboard_image_model,
