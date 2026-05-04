@@ -90,6 +90,7 @@ def moodboard(slug: str, aspect_ratio: str | None) -> None:
 
 
 async def _run_moodboard(sp, project_dir, aspect_ratio, cfg) -> None:
+    image_resolution = getattr(cfg, "DEFAULT_IMAGE_RESOLUTION", "4k")
     async with AIAutoClient(
         api_key=cfg.AI_AUTO_API_KEY,
         video_concurrency=cfg.VIDEO_CONCURRENCY,
@@ -102,6 +103,7 @@ async def _run_moodboard(sp, project_dir, aspect_ratio, cfg) -> None:
             moodboard_image_model=cfg.MOODBOARD_IMAGE_MODEL,
             keyframe_image_model=cfg.KEYFRAME_IMAGE_MODEL,
             aspect_ratio=aspect_ratio,
+            image_resolution=image_resolution,
         )
     console.print("[green]✓ Moodboards + keyframes ready.[/green]")
 

@@ -69,6 +69,7 @@ async def _generate_keyframe(
     screenplay: Screenplay,
     image_model: str,
     aspect_ratio: str,
+    resolution: str,
     out_path: Path,
 ) -> Path:
     style_suffix = f" Visual style: {screenplay.style}."
@@ -77,7 +78,7 @@ async def _generate_keyframe(
         prompt=prompt,
         image_model=image_model,
         aspect_ratio=aspect_ratio,
-        resolution="1k",
+        resolution=resolution,
     )
     await client.download_image(gen.id, out_path)
     return out_path
@@ -91,6 +92,7 @@ async def build_moodboards(
     moodboard_image_model: str,
     keyframe_image_model: str,
     aspect_ratio: str,
+    image_resolution: str = "4k",
 ) -> dict[int, Path]:
     """Generate per-scene moodboards (for review) and per-shot keyframes (used by Seedance).
 
@@ -120,7 +122,7 @@ async def build_moodboards(
                 prompt=prompt,
                 image_model=moodboard_image_model,
                 aspect_ratio="16:9",
-                resolution="1k",
+                resolution=image_resolution,
             )
             await client.download_image(gen.id, out)
             _slice_moodboard(out, len(shots), moodboards_dir, scene_idx)
@@ -143,6 +145,7 @@ async def build_moodboards(
             screenplay=screenplay,
             image_model=keyframe_image_model,
             aspect_ratio=aspect_ratio,
+            resolution=image_resolution,
             out_path=out,
         )
         return shot.index, path

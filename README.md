@@ -17,9 +17,9 @@ Output lands in `projects/<slug>/clips/` as labeled MP4s plus an EDL CSV you can
 ## Pipeline
 
 1. **Script** — Claude expands logline into a screenplay and shot list (JSON).
-2. **Character bible** — `gtv_flux_2_pro` generates locked reference portraits.
-3. **Moodboards** — `gpt-image-2` generates a 4-panel keyframe sheet per scene.
-4. **Per-shot keyframes** — `gtv_seedream_4_5` regenerates each panel with the character ref locked in.
+2. **Character bible** — `nano_banana_pro` generates locked reference portraits.
+3. **Moodboards** — `nano_banana_pro` generates a multi-panel keyframe sheet per scene (4K).
+4. **Per-shot keyframes** — `nano_banana_pro` renders each shot's still at 4K, photorealistic.
 5. **Animate** — Seedance 2.0 image-to-video, 15s each, 4K, 16:9 or 9:16.
 6. **Deliver** — clips named `shot_001_<scene>_<desc>.mp4` + `edl.csv` + `script.json`.
 
