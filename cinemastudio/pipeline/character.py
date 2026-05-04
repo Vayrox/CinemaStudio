@@ -45,9 +45,15 @@ async def generate_portrait(
     image_model: str,
     out_path: Path,
     aspect_ratio: str = "16:9",
-    resolution: str = "4k",
+    resolution: str = "2k",
 ) -> Path:
-    """Generate one 3-panel character sheet and save it to `out_path`."""
+    """Generate one 3-panel character sheet and save it to `out_path`.
+
+    Default resolution is 2k. Sheets are used as reference inputs to the
+    keyframe model; bumping past 2k just makes generation slow without
+    improving identity locking, and 4k tends to trip Cloudflare's 100s edge
+    timeout on ai-auto.io.
+    """
     prompt = SHEET_PROMPT_TEMPLATE.format(name=name, description=description)
     gen = await client.generate_image(
         prompt=prompt,

@@ -104,6 +104,12 @@ class AIAutoClient:
         await self.aclose()
 
     async def _request(self, method: str, path: str, **kwargs: Any) -> httpx.Response:
+        # Codes that mean "transient — try again". 408 = request timeout,
+        # 425 = too early, 429 = rate limit, 5xx = origin trouble. 520-527 are
+        # Cloudflare-specific (524 = origin took >100s to respond, common when
+        # ai-auto.io is under load).
+        TRANSIENT_STATUSES = {408, 425, 429, 500, 502, 503, 504,
+                              520, 521, 522, 523, 524, 525, 526, 527}
         async for attempt in AsyncRetrying(
             stop=stop_after_attempt(5),
             wait=wait_exponential(multiplier=2, min=2, max=30),
@@ -114,14 +120,19 @@ class AIAutoClient:
                 try:
                     resp = await self._client.request(method, path, **kwargs)
                 except (httpx.TimeoutException, httpx.NetworkError) as exc:
-                    # Make the message non-empty (httpx.ReadTimeout stringifies
-                    # to "" or just the URL) and retry — temporary network
-                    # blips and slow generations shouldn't kill the job.
                     raise TransientError(
                         f"{type(exc).__name__} on {method} {path}: {exc!r}"
                     ) from exc
-                if resp.status_code in (429, 500, 502, 503, 504):
-                    raise TransientError(f"{resp.status_code} on {path}: {resp.text[:200]}")
+                if resp.status_code in TRANSIENT_STATUSES:
+                    # Cloudflare HTML pages dump 100KB of branding into the
+                    # body. Trim hard so the log line stays readable.
+                    snippet = resp.text[:120].replace("\n", " ").strip()
+                    if resp.status_code == 524:
+                        snippet = (
+                            "Cloudflare origin timeout — ai-auto.io took >100s. "
+                            "The generation may still be running; retrying"
+                        )
+                    raise TransientError(f"{resp.status_code} on {path}: {snippet}")
                 if resp.status_code >= 400:
                     raise PermanentError(
                         f"{resp.status_code} on {path}: {resp.text[:500]}"
