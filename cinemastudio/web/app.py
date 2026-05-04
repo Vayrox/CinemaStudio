@@ -84,16 +84,23 @@ def create_app() -> FastAPI:
                 existing = {c["name"].strip().lower(): c for c in chars}
                 for c in sp.get("characters", []) or []:
                     key = c["name"].strip().lower()
+                    if not key:
+                        continue
                     if key not in existing:
-                        chars.append({
+                        new_entry = {
                             "name": c["name"],
                             "description": c.get("description", ""),
                             "source": "script",
-                        })
+                        }
+                        chars.append(new_entry)
+                        existing[key] = new_entry
             except Exception:
                 pass
         _write_char_json(project_dir, chars)
-        return chars
+        # Safety net: clean up any pre-existing duplicates so the UI never
+        # double-renders the same cast member.
+        _dedup_characters_json(project_dir)
+        return _read_char_json(project_dir)
 
     def _shot_counts(project_dir: Path) -> dict[str, int]:
         """Map character name (lower) → number of shots they appear in."""
@@ -169,6 +176,71 @@ def create_app() -> FastAPI:
             if (c.get("name") or "").strip().lower() == old_lower:
                 c["name"] = new_name
         _write_char_json(project_dir, chars)
+
+    def _dedup_characters_in_screenplay(project_dir: Path) -> None:
+        """Collapse same-name characters in screenplay.json.
+
+        Keeps the first entry, merges descriptions if the survivor lacks one,
+        and dedups every shot's character_names list.
+        """
+        sp_path = project_dir / "screenplay.json"
+        if not sp_path.exists():
+            return
+        try:
+            data = json.loads(sp_path.read_text())
+        except Exception:
+            return
+        seen: dict[str, dict[str, Any]] = {}
+        deduped: list[dict[str, Any]] = []
+        for c in data.get("characters", []) or []:
+            key = (c.get("name") or "").strip().lower()
+            if not key:
+                continue
+            if key in seen:
+                survivor = seen[key]
+                if not survivor.get("description") and c.get("description"):
+                    survivor["description"] = c["description"]
+                continue
+            seen[key] = c
+            deduped.append(c)
+        data["characters"] = deduped
+        for shot in data.get("shots", []) or []:
+            names = shot.get("character_names") or []
+            seen_n: set[str] = set()
+            out_names: list[str] = []
+            for n in names:
+                k = (n or "").strip().lower()
+                if not k or k in seen_n:
+                    continue
+                seen_n.add(k)
+                out_names.append(n)
+            shot["character_names"] = out_names
+        sp_path.write_text(json.dumps(data, indent=2))
+
+    def _dedup_characters_json(project_dir: Path) -> None:
+        """Collapse same-name entries in characters.json.
+
+        Prefer 'imported' source (explicit user choice) over 'script' or
+        'manual', and keep any non-empty description.
+        """
+        chars = _read_char_json(project_dir)
+        priority = {"imported": 3, "manual": 2, "script": 1}
+        seen: dict[str, dict[str, Any]] = {}
+        deduped: list[dict[str, Any]] = []
+        for c in chars:
+            key = (c.get("name") or "").strip().lower()
+            if not key:
+                continue
+            if key in seen:
+                survivor = seen[key]
+                if priority.get(c.get("source"), 0) > priority.get(survivor.get("source"), 0):
+                    survivor["source"] = c["source"]
+                if not survivor.get("description") and c.get("description"):
+                    survivor["description"] = c["description"]
+                continue
+            seen[key] = c
+            deduped.append(c)
+        _write_char_json(project_dir, deduped)
 
     def _rename_portrait_file(project_dir: Path, old_name: str, new_name: str) -> None:
         if _safe_char_name(old_name) == _safe_char_name(new_name):
@@ -634,6 +706,30 @@ def create_app() -> FastAPI:
             dest.write_bytes(src.read_bytes())
         return JSONResponse({"ok": True, "characters": _list_project_characters(slug)})
 
+    @app.post("/api/projects/{slug}/cast/reset")
+    async def reset_cast(slug: str, keep_sheets: str = Form("1")) -> JSONResponse:
+        """Wipe characters.json and re-sync from screenplay.json.
+
+        Useful when renames produced duplicates or things drifted. By default
+        we keep portrait files on disk so the user doesn't lose generated
+        sheets — set keep_sheets=0 to also clear the characters/ folder.
+        """
+        project_dir = PROJECTS_ROOT / slug
+        if not project_dir.exists():
+            raise HTTPException(404, "project not found")
+        char_json = project_dir / "characters.json"
+        if char_json.exists():
+            char_json.unlink()
+        if keep_sheets == "0":
+            sheet_dir = project_dir / "characters"
+            if sheet_dir.exists():
+                for p in sheet_dir.iterdir():
+                    if p.is_file():
+                        p.unlink()
+        # Re-sync from screenplay (creates a fresh characters.json).
+        _sync_project_characters(project_dir)
+        return JSONResponse({"ok": True, "characters": _list_project_characters(slug)})
+
     @app.post("/api/projects/{slug}/regenerate/moodboard/{scene_idx}")
     async def regenerate_moodboard(slug: str, scene_idx: int) -> JSONResponse:
         project_dir = PROJECTS_ROOT / slug
@@ -724,6 +820,10 @@ def create_app() -> FastAPI:
         _rename_in_screenplay(project_dir, old_name, new_name)
         _rename_in_characters_json(project_dir, old_name, new_name)
         _rename_portrait_file(project_dir, old_name, new_name)
+        # Collapse any duplicates the rename produced (e.g. when two cast
+        # members were both renamed to the same library name).
+        _dedup_characters_in_screenplay(project_dir)
+        _dedup_characters_json(project_dir)
 
         # If we replaced from library, also copy description + portrait sheet.
         if lib_char:

@@ -4,7 +4,26 @@
   const grid = document.getElementById("char-grid");
   const newBtn = document.getElementById("char-new-btn");
   const importBtn = document.getElementById("char-import-btn");
+  const resetBtn = document.getElementById("char-reset-btn");
   if (!grid) return;
+
+  resetBtn.addEventListener("click", async (e) => {
+    const wipeSheets = e.shiftKey;
+    const promptText = wipeSheets
+      ? "Shift-click detected: this will WIPE the cast AND delete every character sheet file on disk. Irreversible. Continue?"
+      : "Reset cast?\n\nThis wipes the cast list and rebuilds it from your screenplay. " +
+        "Generated/uploaded sheet files on disk are KEPT (so you don't lose them).\n\n" +
+        "Tip: hold Shift while clicking Reset cast to also delete the sheet files.";
+    if (!confirm(promptText)) return;
+    const fd = new FormData();
+    fd.append("keep_sheets", wipeSheets ? "0" : "1");
+    try {
+      await jsonOrErr(await fetch(`/api/projects/${slug}/cast/reset`, { method: "POST", body: fd }));
+      window.location.reload();
+    } catch (err) {
+      showError(`Reset failed: ${err.message}`);
+    }
+  });
 
   newBtn.addEventListener("click", async () => {
     const data = await promptForm("New character");
