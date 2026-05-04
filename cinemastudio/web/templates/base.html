@@ -7,30 +7,60 @@
   <link rel="stylesheet" href="/static/style.css" />
 </head>
 <body>
-  <header class="topbar">
+  <aside class="sidebar">
     <a class="brand" href="/">
       <span class="reel">◉</span>
       <span class="brand-name">Cinema<span class="accent">Studio</span></span>
     </a>
     <nav>
-      <a href="/">Projects</a>
-      <a href="/new">New film</a>
-      <a href="/library">Characters</a>
-      <a href="/setup">Settings</a>
+      <a href="/" data-nav="projects">
+        <span class="nav-icon">▦</span> Projects
+      </a>
+      <a href="/new" data-nav="new">
+        <span class="nav-icon">+</span> New film
+      </a>
+      <a href="/library" data-nav="library">
+        <span class="nav-icon">☻</span> Characters
+      </a>
+      <a href="/setup" data-nav="setup">
+        <span class="nav-icon">⚙</span> Settings
+      </a>
     </nav>
-    <div class="status">
+    <div class="sidebar-footer">
       {% if keys is defined %}
-        <span class="dot {{ 'ok' if keys.ai_auto else 'off' }}" title="ai-auto.io key"></span>
-        <span class="dot {{ 'ok' if keys.script_provider_ready else 'off' }}" title="Script provider ({{ keys.script_provider }}) key"></span>
+        <div class="status-row">
+          <span class="dot {{ 'ok' if keys.ai_auto else 'off' }}"></span>
+          <span class="muted small">ai-auto.io</span>
+        </div>
+        <div class="status-row">
+          <span class="dot {{ 'ok' if keys.script_provider_ready else 'off' }}"></span>
+          <span class="muted small">{{ 'Gemini' if keys.script_provider == 'google' else 'Claude' }}</span>
+        </div>
       {% endif %}
     </div>
-  </header>
+  </aside>
   <main>
     {% block content %}{% endblock %}
+    <footer>
+      CinemaStudio · logline → screenplay → keyframes → Seedance 2.0
+    </footer>
   </main>
-  <footer>
-    CinemaStudio · logline → screenplay → keyframes → Seedance 2.0
-  </footer>
+  <script>
+    (() => {
+      const path = window.location.pathname;
+      const map = [
+        [/^\/library/, "library"],
+        [/^\/setup/, "setup"],
+        [/^\/new/, "new"],
+        [/^\//, "projects"],
+      ];
+      const active = map.find(([re]) => re.test(path));
+      if (active) {
+        const link = document.querySelector(`.sidebar nav a[data-nav="${active[1]}"]`);
+        if (link) link.classList.add("active");
+      }
+    })();
+  </script>
   {% block scripts %}{% endblock %}
 </body>
 </html>
