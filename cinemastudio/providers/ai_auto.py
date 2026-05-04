@@ -29,10 +29,11 @@ from tenacity import (
 BASE_URL = "https://api.ai-auto.io/api/saas"
 
 # How often we poll a job for completion, in seconds.
-POLL_INTERVAL = 6
-# Hard ceiling on a single job's wall-clock wait. Seedance 4K/15s usually finishes
-# inside a few minutes; this gives plenty of headroom before we error out.
-POLL_TIMEOUT = 60 * 25
+POLL_INTERVAL = 8
+# Hard ceiling on a single job's wall-clock wait. Seedance 2.0 4K renders can
+# legitimately take up to 30 minutes; we add headroom so a slow render doesn't
+# get killed prematurely.
+POLL_TIMEOUT = 60 * 45
 
 
 class AIAutoError(RuntimeError):
