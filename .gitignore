@@ -1,0 +1,27 @@
+# Local config — NEVER commit your API key
+cinemastudio/config.py
+
+# Project working dirs (generated content)
+projects/*/clips/
+projects/*/moodboards/
+projects/*/characters/
+projects/*/raw/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.venv/
+venv/
+.python-version
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Misc
+*.log
+.cache/
