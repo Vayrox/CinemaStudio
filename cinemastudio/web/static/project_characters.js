@@ -134,13 +134,25 @@
     const action = btn.dataset.charAction;
 
     if (action === "regen") {
+      // Server runs this through JobRunner so we get live-log streaming.
+      // Show an overlay on the card, kick off the job, switch to the log
+      // tab, and let the existing SSE flow reload the page when it ends.
+      card.classList.add("generating");
+      card.dataset.busyLabel = "Generating sheet...";
       try {
-        await busy(card, "regen", () =>
-          jsonOrErr(fetch(`/api/projects/${slug}/characters/${charSlug}/portrait`, { method: "POST" }))
+        await jsonOrErr(
+          fetch(`/api/projects/${slug}/characters/${charSlug}/portrait`, { method: "POST" })
         );
-        window.location.reload();
-      } catch (e) {
-        showError(`Generation failed: ${e.message}`);
+      } catch (err) {
+        card.classList.remove("generating");
+        showError(`Generation failed: ${err.message}`);
+        return;
+      }
+      if (window.CinemaLog) {
+        window.CinemaLog.clearLog();
+        window.CinemaLog.setStatus("running");
+        window.CinemaLog.switchToLogs();
+        window.CinemaLog.listen({ reloadOnEnd: true });
       }
     } else if (action === "edit") {
       const data = await promptForm("Edit character", {
@@ -214,14 +226,17 @@
     if (!input || !input.files[0]) return;
     const card = input.closest("[data-char-slug]");
     const charSlug = card.dataset.charSlug;
+    card.classList.add("generating");
+    card.dataset.busyLabel = "Uploading...";
     const fd = new FormData();
     fd.append("file", input.files[0]);
     try {
-      await busy(card, "upload", () =>
-        jsonOrErr(fetch(`/api/projects/${slug}/characters/${charSlug}/upload`, { method: "POST", body: fd }))
+      await jsonOrErr(
+        fetch(`/api/projects/${slug}/characters/${charSlug}/upload`, { method: "POST", body: fd })
       );
       window.location.reload();
     } catch (err) {
+      card.classList.remove("generating");
       showError(`Upload failed: ${err.message}`);
     }
   });

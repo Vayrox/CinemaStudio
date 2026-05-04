@@ -103,6 +103,22 @@
     });
   });
 
+  // Public API for sibling scripts (project_characters.js etc.) so they can
+  // hook into the live log + tab switching when they kick off a server job.
+  window.CinemaLog = {
+    switchToLogs: () => {
+      tabs.forEach((t) => t.classList.remove("active"));
+      document.querySelectorAll(".tab-panel").forEach((p) => p.classList.add("hidden"));
+      const tab = document.querySelector('.tab[data-tab="logs"]');
+      const panel = document.getElementById("panel-logs");
+      if (tab) tab.classList.add("active");
+      if (panel) panel.classList.remove("hidden");
+    },
+    clearLog: () => { logEl.innerHTML = ""; },
+    setStatus,
+    listen: (opts = { reloadOnEnd: true }) => connect(opts),
+  };
+
   // Regenerate buttons on individual moodboards / keyframes.
   document.querySelectorAll("[data-regen-moodboard]").forEach((btn) => {
     btn.addEventListener("click", () => regenAsset("moodboard", btn));

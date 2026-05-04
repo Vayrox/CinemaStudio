@@ -84,12 +84,13 @@
     const action = btn.dataset.libAction;
 
     if (action === "regen") {
+      card.classList.add("generating");
+      card.dataset.busyLabel = "Generating sheet (~30s)...";
       try {
-        await busy(card, "regen", () =>
-          jsonOrErr(fetch(`/api/library/${slug}/portrait`, { method: "POST" }))
-        );
+        await jsonOrErr(fetch(`/api/library/${slug}/portrait`, { method: "POST" }));
         window.location.reload();
       } catch (e) {
+        card.classList.remove("generating");
         showError(`Generation failed: ${e.message}`);
       }
     } else if (action === "edit") {
@@ -124,14 +125,15 @@
     if (!input || !input.files[0]) return;
     const card = input.closest("[data-lib-slug]");
     const slug = card.dataset.libSlug;
+    card.classList.add("generating");
+    card.dataset.busyLabel = "Uploading...";
     const fd = new FormData();
     fd.append("file", input.files[0]);
     try {
-      await busy(card, "upload", () =>
-        jsonOrErr(fetch(`/api/library/${slug}/upload`, { method: "POST", body: fd }))
-      );
+      await jsonOrErr(fetch(`/api/library/${slug}/upload`, { method: "POST", body: fd }));
       window.location.reload();
     } catch (err) {
+      card.classList.remove("generating");
       showError(`Upload failed: ${err.message}`);
     }
   });

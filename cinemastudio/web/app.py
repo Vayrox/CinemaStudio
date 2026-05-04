@@ -666,6 +666,12 @@ def create_app() -> FastAPI:
     @app.post("/api/projects/{slug}/characters/{char_slug}/portrait")
     async def regen_project_portrait(slug: str, char_slug: str) -> JSONResponse:
         project_dir = PROJECTS_ROOT / slug
+        if not project_dir.exists():
+            raise HTTPException(404, "project not found")
+        # Make sure characters.json is in sync with screenplay.json so a
+        # script-only character (never edited by the user) can still be
+        # found by safe-name slug.
+        _sync_project_characters(project_dir)
         chars = _read_char_json(project_dir)
         match = next((c for c in chars if _safe_char_name(c["name"]) == char_slug), None)
         if not match:
@@ -673,8 +679,33 @@ def create_app() -> FastAPI:
         cfg = _config()
         if not cfg.AI_AUTO_API_KEY:
             raise HTTPException(400, "ai-auto.io key not set")
-        await _generate_project_portrait(project_dir, match, cfg)
-        return JSONResponse({"ok": True, "characters": _list_project_characters(slug)})
+
+        char_name = match["name"]
+        char_desc = match.get("description", "") or ""
+
+        async def fn(ctx: JobContext) -> None:
+            ctx.log("info", f"Generating 3-panel reference sheet for {char_name}...")
+            async with AIAutoClient(
+                api_key=cfg.AI_AUTO_API_KEY,
+                video_concurrency=cfg.VIDEO_CONCURRENCY,
+                image_concurrency=cfg.IMAGE_CONCURRENCY,
+            ) as client:
+                out_path = _project_char_path(project_dir, char_name)
+                await char_mod.generate_portrait(
+                    client,
+                    name=char_name,
+                    description=char_desc,
+                    image_model=cfg.CHARACTER_IMAGE_MODEL,
+                    out_path=out_path,
+                )
+            ctx.log("success", f"Sheet ready for {char_name}: {out_path.name}")
+
+        started = await runner.start(slug, "portrait", fn)
+        if not started:
+            raise HTTPException(
+                409, "Another job is already running for this project. Cancel it first."
+            )
+        return JSONResponse({"ok": True, "kind": "portrait"})
 
     @app.post("/api/projects/{slug}/characters/{char_slug}/upload")
     async def upload_project_portrait(
